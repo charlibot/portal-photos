@@ -6,15 +6,35 @@ import coil.ImageLoaderFactory
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.portalphotos.app.data.cache.CacheManager
+import com.portalphotos.app.data.crop.SmartCropDetector
+import com.portalphotos.app.data.db.PortalPhotosDatabase
+import com.portalphotos.app.data.prefs.AppPreferences
+import com.portalphotos.app.data.repository.AlbumRepository
+import com.portalphotos.app.data.server.LocalWebServer
 
 class PortalPhotosApplication : Application(), ImageLoaderFactory {
 
     lateinit var cacheManager: CacheManager
         private set
+    lateinit var database: PortalPhotosDatabase
+        private set
+    lateinit var repository: AlbumRepository
+        private set
+    lateinit var appPreferences: AppPreferences
+        private set
+    lateinit var smartCropDetector: SmartCropDetector
+        private set
+    lateinit var localWebServer: LocalWebServer
+        private set
 
     override fun onCreate() {
         super.onCreate()
         cacheManager = CacheManager(this)
+        database = PortalPhotosDatabase.getDatabase(this)
+        repository = AlbumRepository(database.albumDao())
+        appPreferences = AppPreferences(this)
+        smartCropDetector = SmartCropDetector()
+        localWebServer = LocalWebServer(repository)
     }
 
     override fun newImageLoader(): ImageLoader {

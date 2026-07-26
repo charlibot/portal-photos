@@ -12,6 +12,8 @@ import androidx.compose.ui.Modifier
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.lifecycleScope
 import com.portalphotos.app.ui.screens.ViewerScreen
 import com.portalphotos.app.ui.viewmodel.ViewerViewModel
@@ -20,7 +22,21 @@ import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
 
-    private val viewModel: ViewerViewModel by viewModels()
+    private val viewModel: ViewerViewModel by viewModels {
+        object : ViewModelProvider.Factory {
+            override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                val app = application as PortalPhotosApplication
+                @Suppress("UNCHECKED_CAST")
+                return ViewerViewModel(
+                    repository = app.repository,
+                    appPreferences = app.appPreferences,
+                    cacheManager = app.cacheManager,
+                    smartCropDetector = app.smartCropDetector,
+                    localWebServer = app.localWebServer
+                ) as T
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
