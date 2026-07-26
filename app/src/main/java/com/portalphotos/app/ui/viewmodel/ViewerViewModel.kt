@@ -1,14 +1,11 @@
 package com.portalphotos.app.ui.viewmodel
 
-import android.app.Application
 import android.graphics.Bitmap
 import androidx.compose.ui.geometry.Offset
-import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.portalphotos.app.data.cache.CacheManager
 import com.portalphotos.app.data.crop.SmartCropDetector
-import com.portalphotos.app.data.db.PortalPhotosDatabase
-import com.portalphotos.app.data.model.AlbumEntity
 import com.portalphotos.app.data.model.MediaItem
 import com.portalphotos.app.data.prefs.AppPreferences
 import com.portalphotos.app.data.prefs.UserSettings
@@ -19,35 +16,30 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
-class ViewerViewModel(application: Application) : AndroidViewModel(application) {
+class ViewerViewModel(
+    val repository: AlbumRepository,
+    val appPreferences: AppPreferences,
+    val cacheManager: CacheManager,
+    val smartCropDetector: SmartCropDetector,
+    val localWebServer: LocalWebServer
+) : ViewModel() {
 
-    private val db = PortalPhotosDatabase.getDatabase(application)
-    val repository = AlbumRepository(db.albumDao())
-    val preferences = AppPreferences(application)
-    val cacheManager = CacheManager(application)
-    private val smartCropDetector = SmartCropDetector()
-
-    private val localWebServer = LocalWebServer(repository, port = 12345)
-
-    private val _localWebUrl = MutableStateFlow<String?>(null)
-    val localWebUrl: StateFlow<String?> = _localWebUrl.asStateFlow()
-
-    val userSettings: StateFlow<UserSettings> = preferences.userSettingsFlow
+    val userSettings: StateFlow<UserSettings> = appPreferences.userSettingsFlow
         .stateIn(viewModelScope, SharingStarted.Eagerly, UserSettings())
 
-    val allAlbums: StateFlow<List<AlbumEntity>> = repository.allAlbums
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    val allAlbums = repository.allAlbums
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    private val rawMediaItems: StateFlow<List<MediaItem>> = repository.mediaItemsForSelectedAlbums
-        .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
-    val displayMediaItems: StateFlow<List<MediaItem>> = combine(rawMediaItems, userSettings) { items, settings ->
+    val displayMediaItems: StateFlow<List<MediaItem>> = combine(
+        repository.mediaItemsForSelectedAlbums,
+        userSettings
+    ) { items: List<MediaItem>, settings: UserSettings ->
         if (settings.shuffleMode) {
             items.shuffled()
         } else {
             items
         }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
     private val _isAudioMuted = MutableStateFlow(true)
     val isAudioMuted: StateFlow<Boolean> = _isAudioMuted.asStateFlow()
@@ -58,15 +50,11 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     private val _uiMessage = MutableStateFlow<String?>(null)
     val uiMessage: StateFlow<String?> = _uiMessage.asStateFlow()
 
-    init {
-        // Sync mute state from initial user settings
-        viewModelScope.launch {
-            userSettings.collect { settings ->
-                _isAudioMuted.value = (settings.soundMode == com.portalphotos.app.data.prefs.SoundMode.MUTED)
-            }
-        }
+    private val _localWebUrl = MutableStateFlow<String?>(null)
+    val localWebUrl: StateFlow<String?> = _localWebUrl.asStateFlow()
 
-        // Start Local Web Server on port 12345
+    init {
+        // Start Local Web Server for desktop/phone album URL management
         try {
             localWebServer.start()
             val ip = NetworkUtils.getLocalIpAddress()
@@ -128,6 +116,24 @@ class ViewerViewModel(application: Application) : AndroidViewModel(application) 
     fun deleteAlbum(albumId: String) {
         viewModelScope.launch {
             repository.deleteAlbum(albumId)
+        }
+    }
+
+    fun updateSleepScheduleEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            appPreferences.updateSleepScheduleEnabled(enabled)
+        }
+    }
+
+    fun updateSleepStartHour(startHour: Int) {
+        viewModelScope.launch {
+            appPreferences.updateSleepStartHour(startHour)
+        }
+    }
+
+    fun updateSleepEndHour(endHour: Int) {
+        viewModelScope.launch {
+            appPreferences.updateSleepEndHour(endHour)
         }
     }
 

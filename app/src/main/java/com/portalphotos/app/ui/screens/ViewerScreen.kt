@@ -16,6 +16,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Language
@@ -42,6 +43,7 @@ import com.portalphotos.app.ui.components.VideoPlayer
 import com.portalphotos.app.ui.viewmodel.ViewerViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.Calendar
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -61,6 +63,40 @@ fun ViewerScreen(
 
     var showSettingsSheet by remember { mutableStateOf(false) }
     var showControlsOverlay by remember { mutableStateOf(true) }
+
+    // Sleep Mode State Management
+    var currentHour by remember { mutableStateOf(Calendar.getInstance().get(Calendar.HOUR_OF_DAY)) }
+    var isTemporarilyWoken by remember { mutableStateOf(false) }
+
+    // Update current hour every 60 seconds
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentHour = Calendar.getInstance().get(Calendar.HOUR_OF_DAY)
+            delay(60_000L)
+        }
+    }
+
+    val isSleepHourActive = remember(currentHour, userSettings.sleepStartHour, userSettings.sleepEndHour) {
+        val start = userSettings.sleepStartHour
+        val end = userSettings.sleepEndHour
+        if (start > end) {
+            currentHour >= start || currentHour < end
+        } else if (start < end) {
+            currentHour in start until end
+        } else {
+            false
+        }
+    }
+
+    val isSleepingNow = userSettings.sleepScheduleEnabled && isSleepHourActive && !isTemporarilyWoken
+
+    // Auto-re-enter sleep mode after 30 seconds of temp wake
+    LaunchedEffect(isTemporarilyWoken) {
+        if (isTemporarilyWoken) {
+            delay(30_000L)
+            isTemporarilyWoken = false
+        }
+    }
 
     // Safe infinite looping pager setup within Float precision limits
     val virtualPageCount = remember(mediaItems) {
@@ -92,14 +128,14 @@ fun ViewerScreen(
         }
     }
 
-    // Auto-advance slideshow timer loop EXCLUSIVELY for still photo slides
-    LaunchedEffect(isPlaying, pagerState.settledPage, mediaItems, userSettings.slideshowTimerSeconds) {
-        if (isPlaying && mediaItems.isNotEmpty() && userSettings.slideshowTimerSeconds > 0) {
+    // Auto-advance slideshow timer loop EXCLUSIVELY for still photo slides when not sleeping
+    LaunchedEffect(isPlaying, isSleepingNow, pagerState.settledPage, mediaItems, userSettings.slideshowTimerSeconds) {
+        if (isPlaying && !isSleepingNow && mediaItems.isNotEmpty() && userSettings.slideshowTimerSeconds > 0) {
             val actualIndex = pagerState.settledPage % mediaItems.size
             val currentItem = mediaItems.getOrNull(actualIndex)
             if (currentItem is MediaItem.Photo) {
                 delay(userSettings.slideshowTimerSeconds * 1000L)
-                if (isPlaying && mediaItems.isNotEmpty()) {
+                if (isPlaying && !isSleepingNow && mediaItems.isNotEmpty()) {
                     val nextPage = pagerState.settledPage + 1
                     pagerState.animateScrollToPage(
                         page = nextPage,
@@ -126,7 +162,11 @@ fun ViewerScreen(
                 interactionSource = remember { MutableInteractionSource() },
                 indication = null
             ) {
-                showControlsOverlay = !showControlsOverlay
+                if (isSleepingNow) {
+                    isTemporarilyWoken = true
+                } else {
+                    showControlsOverlay = !showControlsOverlay
+                }
             }
     ) {
         if (mediaItems.isEmpty()) {
@@ -227,14 +267,14 @@ fun ViewerScreen(
                                 imageUrl = item.displayUrl,
                                 streamUrl = item.streamUrl,
                                 isLivePhotoItem = item.isLivePhoto,
-                                isActivePage = isActivePage,
+                                isActivePage = isActivePage && !isSleepingNow,
                                 autoplay = userSettings.autoplayVideos,
                                 isMuted = isAudioMuted,
                                 livePhotoBehavior = userSettings.livePhotoBehavior,
                                 onToggleMute = { viewModel.toggleAudioMute() },
                                 onVideoCompleted = {
                                     scope.launch {
-                                        if (mediaItems.isNotEmpty()) {
+                                        if (mediaItems.isNotEmpty() && !isSleepingNow) {
                                             val nextPage = pagerState.settledPage + 1
                                             pagerState.animateScrollToPage(
                                                 page = nextPage,
@@ -251,16 +291,18 @@ fun ViewerScreen(
             }
 
             // Ambient Clock Overlay
-            ClockOverlay(
-                mode = userSettings.clockOverlayMode,
-                pixelShiftProtection = userSettings.pixelShiftProtection
-            )
+            if (!isSleepingNow) {
+                ClockOverlay(
+                    mode = userSettings.clockOverlayMode,
+                    pixelShiftProtection = userSettings.pixelShiftProtection
+                )
+            }
 
-            // Top Progress Bar for Active Slideshow Playback Countdown (Shown ONLY for Photo & Live Photo Still Slides)
+            // Top Progress Bar for Active Slideshow Playback Countdown
             val currentItem = mediaItems.getOrNull(pagerState.settledPage % mediaItems.size)
             val isStillSlide = currentItem is MediaItem.Photo || (currentItem is MediaItem.Video && currentItem.isLivePhoto)
 
-            if (mediaItems.size > 1 && userSettings.showProgressBar && isStillSlide) {
+            if (mediaItems.size > 1 && userSettings.showProgressBar && isStillSlide && !isSleepingNow) {
                 val progressAnimation = remember { Animatable(0f) }
 
                 LaunchedEffect(pagerState.settledPage) {
@@ -297,9 +339,43 @@ fun ViewerScreen(
             }
         }
 
-        // Overlay Controls (Fades in on screen tap)
+        // Night Sleep Mode Full Black Overlay
+        if (isSleepingNow) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black)
+                    .clickable { isTemporarilyWoken = true },
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Bedtime,
+                        contentDescription = "Sleep Mode Active",
+                        tint = Color.White.copy(alpha = 0.25f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = "Night Sleep Schedule",
+                        color = Color.White.copy(alpha = 0.35f),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = "Touch screen anywhere to wake",
+                        color = Color.White.copy(alpha = 0.2f),
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
+        // Overlay Controls (Fades in on screen tap when not sleeping)
         AnimatedVisibility(
-            visible = showControlsOverlay || mediaItems.isEmpty(),
+            visible = (showControlsOverlay || mediaItems.isEmpty()) && !isSleepingNow,
             enter = fadeIn(),
             exit = fadeOut()
         ) {
@@ -366,7 +442,7 @@ fun ViewerScreen(
                             )
                         }
 
-                        // 2. Play / Pause Button (Simply toggles play/pause without jumping slides)
+                        // 2. Play / Pause Button
                         IconButton(
                             onClick = { viewModel.togglePlayPause() }
                         ) {

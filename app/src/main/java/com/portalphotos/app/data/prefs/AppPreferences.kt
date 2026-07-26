@@ -30,7 +30,10 @@ data class UserSettings(
     val keepScreenAwake: Boolean = true,
     val pixelShiftProtection: Boolean = true,
     val preloadDepth: Int = 5,
-    val showProgressBar: Boolean = false
+    val showProgressBar: Boolean = false,
+    val sleepScheduleEnabled: Boolean = false,
+    val sleepStartHour: Int = 23,
+    val sleepEndHour: Int = 8
 )
 
 class AppPreferences(private val context: Context) {
@@ -49,6 +52,9 @@ class AppPreferences(private val context: Context) {
         val PIXEL_SHIFT = booleanPreferencesKey("pixel_shift")
         val PRELOAD_DEPTH = intPreferencesKey("preload_depth")
         val SHOW_PROGRESS_BAR = booleanPreferencesKey("show_progress_bar")
+        val SLEEP_SCHEDULE_ENABLED = booleanPreferencesKey("sleep_schedule_enabled")
+        val SLEEP_START_HOUR = intPreferencesKey("sleep_start_hour")
+        val SLEEP_END_HOUR = intPreferencesKey("sleep_end_hour")
     }
 
     val userSettingsFlow: Flow<UserSettings> = context.dataStore.data
@@ -73,7 +79,10 @@ class AppPreferences(private val context: Context) {
                 keepScreenAwake = prefs[PreferenceKeys.KEEP_SCREEN_AWAKE] ?: true,
                 pixelShiftProtection = prefs[PreferenceKeys.PIXEL_SHIFT] ?: true,
                 preloadDepth = prefs[PreferenceKeys.PRELOAD_DEPTH] ?: 5,
-                showProgressBar = prefs[PreferenceKeys.SHOW_PROGRESS_BAR] ?: false
+                showProgressBar = prefs[PreferenceKeys.SHOW_PROGRESS_BAR] ?: false,
+                sleepScheduleEnabled = prefs[PreferenceKeys.SLEEP_SCHEDULE_ENABLED] ?: false,
+                sleepStartHour = prefs[PreferenceKeys.SLEEP_START_HOUR] ?: 23,
+                sleepEndHour = prefs[PreferenceKeys.SLEEP_END_HOUR] ?: 8
             )
         }
 
@@ -127,5 +136,17 @@ class AppPreferences(private val context: Context) {
 
     suspend fun updateShowProgressBar(enabled: Boolean) {
         context.dataStore.edit { it[PreferenceKeys.SHOW_PROGRESS_BAR] = enabled }
+    }
+
+    suspend fun updateSleepScheduleEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[PreferenceKeys.SLEEP_SCHEDULE_ENABLED] = enabled }
+    }
+
+    suspend fun updateSleepStartHour(startHour: Int) {
+        context.dataStore.edit { it[PreferenceKeys.SLEEP_START_HOUR] = startHour }
+    }
+
+    suspend fun updateSleepEndHour(endHour: Int) {
+        context.dataStore.edit { it[PreferenceKeys.SLEEP_END_HOUR] = endHour }
     }
 }

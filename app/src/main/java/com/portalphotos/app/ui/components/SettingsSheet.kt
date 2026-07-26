@@ -6,6 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material3.*
@@ -41,21 +42,29 @@ fun SettingsSheet(
         modifier = modifier
     ) {
         LazyColumn(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            modifier = Modifier.fillMaxWidth()
         ) {
             item {
-                Text(
-                    text = "Portal Photos Settings",
-                    fontSize = 24.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Settings",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.headlineMedium
+                    )
+                    TextButton(onClick = onDismiss) {
+                        Text("Done", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
             }
 
-            // Local Web Server URL Banner Prompt
+            // Local Web Server Information Banner
             if (!localWebUrl.isNullOrEmpty()) {
                 item {
                     Card(
@@ -63,8 +72,9 @@ fun SettingsSheet(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
+                            modifier = Modifier.padding(16.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(16.dp)
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Language,
@@ -72,18 +82,18 @@ fun SettingsSheet(
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
                                 modifier = Modifier.size(32.dp)
                             )
-                            Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "Add albums from your phone/PC",
+                                    text = "Manage Albums from any Phone / PC:",
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 15.sp,
+                                    fontSize = 14.sp,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer
                                 )
                                 Text(
-                                    text = "Go to $localWebUrl on any browser on the same Wi-Fi network",
-                                    fontSize = 13.sp,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f)
+                                    text = localWebUrl ?: "",
+                                    fontSize = 18.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -91,7 +101,7 @@ fun SettingsSheet(
                 }
             }
 
-            // Section 1: Add Google Photos Album URL directly on Portal
+            // Section 1: Add Shared Album URL
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -99,7 +109,7 @@ fun SettingsSheet(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Add Google Photos Album Link",
+                            text = "Add Google Photos Shared Album",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp
                         )
@@ -112,27 +122,26 @@ fun SettingsSheet(
                                 value = urlInput,
                                 onValueChange = { urlInput = it },
                                 placeholder = { Text("Paste https://photos.app.goo.gl/...") },
-                                singleLine = true,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                singleLine = true
                             )
                             Button(
                                 onClick = {
                                     if (urlInput.isNotBlank()) {
-                                        viewModel.addAlbumUrl(urlInput)
+                                        viewModel.addAlbumUrl(urlInput.trim())
                                         urlInput = ""
                                     }
-                                }
+                                },
+                                enabled = urlInput.isNotBlank()
                             ) {
                                 Icon(Icons.Default.Add, contentDescription = "Add")
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Add")
                             }
                         }
                     }
                 }
             }
 
-            // Section 2: Manage Saved Albums & Multi-Selection Pool
+            // Section 2: Manage Added Albums
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -193,7 +202,120 @@ fun SettingsSheet(
                 }
             }
 
-            // Section 3: Clock & Date Overlay Settings
+            // Section 3: Sleep Schedule & Night Hours (Default 23:00 to 08:00)
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Bedtime,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Night Sleep Schedule",
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 16.sp
+                                )
+                            }
+                            Switch(
+                                checked = userSettings.sleepScheduleEnabled,
+                                onCheckedChange = { isChecked ->
+                                    viewModel.updateSleepScheduleEnabled(isChecked)
+                                }
+                            )
+                        }
+
+                        if (userSettings.sleepScheduleEnabled) {
+                            Text(
+                                text = "Screen turns pitch black during sleeping hours to emit zero glare. Touch screen anytime to wake.",
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Sleep Starts", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                    Text(
+                                        text = String.format("%02d:00 (%s)", userSettings.sleepStartHour, if (userSettings.sleepStartHour >= 12) "${if (userSettings.sleepStartHour > 12) userSettings.sleepStartHour - 12 else 12} PM" else "${if (userSettings.sleepStartHour == 0) 12 else userSettings.sleepStartHour} AM"),
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    FilterChip(
+                                        selected = userSettings.sleepStartHour == 22,
+                                        onClick = { viewModel.updateSleepStartHour(22) },
+                                        label = { Text("10 PM") }
+                                    )
+                                    FilterChip(
+                                        selected = userSettings.sleepStartHour == 23,
+                                        onClick = { viewModel.updateSleepStartHour(23) },
+                                        label = { Text("11 PM") }
+                                    )
+                                    FilterChip(
+                                        selected = userSettings.sleepStartHour == 0,
+                                        onClick = { viewModel.updateSleepStartHour(0) },
+                                        label = { Text("12 AM") }
+                                    )
+                                }
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("Sleep Ends", fontWeight = FontWeight.Medium, fontSize = 14.sp)
+                                    Text(
+                                        text = String.format("%02d:00 (%s)", userSettings.sleepEndHour, if (userSettings.sleepEndHour >= 12) "${if (userSettings.sleepEndHour > 12) userSettings.sleepEndHour - 12 else 12} PM" else "${if (userSettings.sleepEndHour == 0) 12 else userSettings.sleepEndHour} AM"),
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    FilterChip(
+                                        selected = userSettings.sleepEndHour == 6,
+                                        onClick = { viewModel.updateSleepEndHour(6) },
+                                        label = { Text("6 AM") }
+                                    )
+                                    FilterChip(
+                                        selected = userSettings.sleepEndHour == 7,
+                                        onClick = { viewModel.updateSleepEndHour(7) },
+                                        label = { Text("7 AM") }
+                                    )
+                                    FilterChip(
+                                        selected = userSettings.sleepEndHour == 8,
+                                        onClick = { viewModel.updateSleepEndHour(8) },
+                                        label = { Text("8 AM") }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Section 4: Clock & Date Overlay Settings
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -214,7 +336,7 @@ fun SettingsSheet(
                                 selected = userSettings.clockOverlayMode == ClockOverlayMode.HIDDEN,
                                 onClick = {
                                     scope.launch {
-                                        viewModel.preferences.updateClockOverlay(ClockOverlayMode.HIDDEN)
+                                        viewModel.appPreferences.updateClockOverlay(ClockOverlayMode.HIDDEN)
                                     }
                                 },
                                 label = { Text("Disabled") }
@@ -223,35 +345,26 @@ fun SettingsSheet(
                                 selected = userSettings.clockOverlayMode == ClockOverlayMode.TOP_RIGHT,
                                 onClick = {
                                     scope.launch {
-                                        viewModel.preferences.updateClockOverlay(ClockOverlayMode.TOP_RIGHT)
+                                        viewModel.appPreferences.updateClockOverlay(ClockOverlayMode.TOP_RIGHT)
                                     }
                                 },
-                                label = { Text("Top-Right") }
+                                label = { Text("Top Right") }
                             )
                             FilterChip(
                                 selected = userSettings.clockOverlayMode == ClockOverlayMode.BOTTOM_LEFT,
                                 onClick = {
                                     scope.launch {
-                                        viewModel.preferences.updateClockOverlay(ClockOverlayMode.BOTTOM_LEFT)
+                                        viewModel.appPreferences.updateClockOverlay(ClockOverlayMode.BOTTOM_LEFT)
                                     }
                                 },
-                                label = { Text("Bottom-Left") }
-                            )
-                            FilterChip(
-                                selected = userSettings.clockOverlayMode == ClockOverlayMode.BAR,
-                                onClick = {
-                                    scope.launch {
-                                        viewModel.preferences.updateClockOverlay(ClockOverlayMode.BAR)
-                                    }
-                                },
-                                label = { Text("Glass Bar") }
+                                label = { Text("Bottom Left") }
                             )
                         }
                     }
                 }
             }
 
-            // Section 4: Display & Smart Cropping Settings
+            // Section 5: Image Scaling & Smart Crop Mode
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -259,96 +372,92 @@ fun SettingsSheet(
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Display & Smart Cropping Mode",
+                            text = "Photo Alignment & Smart Crop",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             FilterChip(
                                 selected = userSettings.scalingMode == ScalingMode.FILL_SMART_CROP,
                                 onClick = {
                                     scope.launch {
-                                        viewModel.preferences.updateScalingMode(ScalingMode.FILL_SMART_CROP)
+                                        viewModel.appPreferences.updateScalingMode(ScalingMode.FILL_SMART_CROP)
                                     }
                                 },
-                                label = { Text("Fill (Smart Crop)") }
+                                label = { Text("Smart Crop (ML Face & Object Centered)") }
                             )
                             FilterChip(
                                 selected = userSettings.scalingMode == ScalingMode.FIT,
                                 onClick = {
                                     scope.launch {
-                                        viewModel.preferences.updateScalingMode(ScalingMode.FIT)
+                                        viewModel.appPreferences.updateScalingMode(ScalingMode.FIT)
                                     }
                                 },
-                                label = { Text("Fit (Whole Photo)") }
+                                label = { Text("Fit (Full Photo + Blurred Bars)") }
                             )
                             FilterChip(
                                 selected = userSettings.scalingMode == ScalingMode.FILL_CENTER,
                                 onClick = {
                                     scope.launch {
-                                        viewModel.preferences.updateScalingMode(ScalingMode.FILL_CENTER)
+                                        viewModel.appPreferences.updateScalingMode(ScalingMode.FILL_CENTER)
                                     }
                                 },
-                                label = { Text("Fill (Center)") }
+                                label = { Text("Fill Screen (Center Crop)") }
                             )
                         }
                     }
                 }
             }
 
-            // Section 5: Playback & Live Photos Settings
+            // Section 6: Live Photos & Video Controls
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = "Playback & Slideshow Settings",
+                            text = "Playback & Motion Options",
                             fontWeight = FontWeight.SemiBold,
                             fontSize = 16.sp
                         )
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Slideshow Timer")
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                listOf(5, 10, 30, 60).forEach { seconds ->
-                                    FilterChip(
-                                        selected = userSettings.slideshowTimerSeconds == seconds,
-                                        onClick = {
-                                            scope.launch {
-                                                viewModel.preferences.updateSlideshowTimer(seconds)
-                                            }
-                                        },
-                                        label = { Text("${seconds}s") }
-                                    )
-                                }
-                            }
-                        }
-
-                        Column {
-                            Text("Live Photos Behavior", fontSize = 14.sp)
-                            Spacer(modifier = Modifier.height(6.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Text("Live Photo Mode:", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                                 FilterChip(
                                     selected = userSettings.livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE,
                                     onClick = {
                                         scope.launch {
-                                            viewModel.preferences.updateLivePhotoBehavior(LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE)
+                                            viewModel.appPreferences.updateLivePhotoBehavior(LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE)
                                         }
                                     },
-                                    label = { Text("Still Photo + Motion Pill") }
+                                    label = { Text("Still Photo + [LIVE] Toggle") }
                                 )
+                                FilterChip(
+                                    selected = userSettings.livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_ONLY,
+                                    onClick = {
+                                        scope.launch {
+                                            viewModel.appPreferences.updateLivePhotoBehavior(LivePhotoBehavior.STILL_PHOTO_ONLY)
+                                        }
+                                    },
+                                    label = { Text("Still Only") }
+                                )
+                            }
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
                                 FilterChip(
                                     selected = userSettings.livePhotoBehavior == LivePhotoBehavior.PLAY_MOTION_ONCE,
                                     onClick = {
                                         scope.launch {
-                                            viewModel.preferences.updateLivePhotoBehavior(LivePhotoBehavior.PLAY_MOTION_ONCE)
+                                            viewModel.appPreferences.updateLivePhotoBehavior(LivePhotoBehavior.PLAY_MOTION_ONCE)
                                         }
                                     },
                                     label = { Text("Play Motion then Hold") }
@@ -357,7 +466,7 @@ fun SettingsSheet(
                                     selected = userSettings.livePhotoBehavior == LivePhotoBehavior.PLAY_AS_VIDEO,
                                     onClick = {
                                         scope.launch {
-                                            viewModel.preferences.updateLivePhotoBehavior(LivePhotoBehavior.PLAY_AS_VIDEO)
+                                            viewModel.appPreferences.updateLivePhotoBehavior(LivePhotoBehavior.PLAY_AS_VIDEO)
                                         }
                                     },
                                     label = { Text("Play on Loop") }
@@ -375,7 +484,7 @@ fun SettingsSheet(
                                 checked = userSettings.showProgressBar,
                                 onCheckedChange = { isChecked ->
                                     scope.launch {
-                                        viewModel.preferences.updateShowProgressBar(isChecked)
+                                        viewModel.appPreferences.updateShowProgressBar(isChecked)
                                     }
                                 }
                             )
@@ -391,7 +500,7 @@ fun SettingsSheet(
                                 checked = userSettings.shuffleMode,
                                 onCheckedChange = { isChecked ->
                                     scope.launch {
-                                        viewModel.preferences.updateShuffleMode(isChecked)
+                                        viewModel.appPreferences.updateShuffleMode(isChecked)
                                     }
                                 }
                             )
@@ -407,7 +516,7 @@ fun SettingsSheet(
                                 checked = userSettings.autoplayVideos,
                                 onCheckedChange = { isChecked ->
                                     scope.launch {
-                                        viewModel.preferences.updateAutoplayVideos(isChecked)
+                                        viewModel.appPreferences.updateAutoplayVideos(isChecked)
                                     }
                                 }
                             )
@@ -423,7 +532,7 @@ fun SettingsSheet(
                                 checked = userSettings.keepScreenAwake,
                                 onCheckedChange = { isChecked ->
                                     scope.launch {
-                                        viewModel.preferences.updateKeepScreenAwake(isChecked)
+                                        viewModel.appPreferences.updateKeepScreenAwake(isChecked)
                                     }
                                 }
                             )
