@@ -31,7 +31,7 @@ data class UserSettings(
     val pixelShiftProtection: Boolean = true,
     val preloadDepth: Int = 5,
     val showProgressBar: Boolean = false,
-    val sleepScheduleEnabled: Boolean = false,
+    val sleepScheduleEnabled: Boolean = true,
     val sleepStartHour: Int = 23,
     val sleepEndHour: Int = 8
 )
@@ -80,7 +80,7 @@ class AppPreferences(private val context: Context) {
                 pixelShiftProtection = prefs[PreferenceKeys.PIXEL_SHIFT] ?: true,
                 preloadDepth = prefs[PreferenceKeys.PRELOAD_DEPTH] ?: 5,
                 showProgressBar = prefs[PreferenceKeys.SHOW_PROGRESS_BAR] ?: false,
-                sleepScheduleEnabled = prefs[PreferenceKeys.SLEEP_SCHEDULE_ENABLED] ?: false,
+                sleepScheduleEnabled = prefs[PreferenceKeys.SLEEP_SCHEDULE_ENABLED] ?: true,
                 sleepStartHour = prefs[PreferenceKeys.SLEEP_START_HOUR] ?: 23,
                 sleepEndHour = prefs[PreferenceKeys.SLEEP_END_HOUR] ?: 8
             )

@@ -202,7 +202,7 @@ fun SettingsSheet(
                 }
             }
 
-            // Section 3: Sleep Schedule & Night Hours (Default 23:00 to 08:00)
+            // Section 3: Sleep Schedule & Night Hours (Default ON: 23:00 to 08:00)
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -247,69 +247,19 @@ fun SettingsSheet(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                             )
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text("Sleep Starts", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Text(
-                                        text = String.format("%02d:00 (%s)", userSettings.sleepStartHour, if (userSettings.sleepStartHour >= 12) "${if (userSettings.sleepStartHour > 12) userSettings.sleepStartHour - 12 else 12} PM" else "${if (userSettings.sleepStartHour == 0) 12 else userSettings.sleepStartHour} AM"),
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    FilterChip(
-                                        selected = userSettings.sleepStartHour == 22,
-                                        onClick = { viewModel.updateSleepStartHour(22) },
-                                        label = { Text("10 PM") }
-                                    )
-                                    FilterChip(
-                                        selected = userSettings.sleepStartHour == 23,
-                                        onClick = { viewModel.updateSleepStartHour(23) },
-                                        label = { Text("11 PM") }
-                                    )
-                                    FilterChip(
-                                        selected = userSettings.sleepStartHour == 0,
-                                        onClick = { viewModel.updateSleepStartHour(0) },
-                                        label = { Text("12 AM") }
-                                    )
-                                }
-                            }
+                            // 24-Hour Selector for Sleep Start Hour
+                            HourPickerRow(
+                                label = "Sleep Starts",
+                                selectedHour = userSettings.sleepStartHour,
+                                onHourSelected = { hour -> viewModel.updateSleepStartHour(hour) }
+                            )
 
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text("Sleep Ends", fontWeight = FontWeight.Medium, fontSize = 14.sp)
-                                    Text(
-                                        text = String.format("%02d:00 (%s)", userSettings.sleepEndHour, if (userSettings.sleepEndHour >= 12) "${if (userSettings.sleepEndHour > 12) userSettings.sleepEndHour - 12 else 12} PM" else "${if (userSettings.sleepEndHour == 0) 12 else userSettings.sleepEndHour} AM"),
-                                        fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    FilterChip(
-                                        selected = userSettings.sleepEndHour == 6,
-                                        onClick = { viewModel.updateSleepEndHour(6) },
-                                        label = { Text("6 AM") }
-                                    )
-                                    FilterChip(
-                                        selected = userSettings.sleepEndHour == 7,
-                                        onClick = { viewModel.updateSleepEndHour(7) },
-                                        label = { Text("7 AM") }
-                                    )
-                                    FilterChip(
-                                        selected = userSettings.sleepEndHour == 8,
-                                        onClick = { viewModel.updateSleepEndHour(8) },
-                                        label = { Text("8 AM") }
-                                    )
-                                }
-                            }
+                            // 24-Hour Selector for Sleep End Hour
+                            HourPickerRow(
+                                label = "Sleep Ends",
+                                selectedHour = userSettings.sleepEndHour,
+                                onHourSelected = { hour -> viewModel.updateSleepEndHour(hour) }
+                            )
                         }
                     }
                 }
@@ -543,6 +493,63 @@ fun SettingsSheet(
 
             item {
                 Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HourPickerRow(
+    label: String,
+    selectedHour: Int,
+    onHourSelected: (Int) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    fun formatHour(h: Int): String {
+        val amPm = if (h >= 12) "PM" else "AM"
+        val displayHour = when {
+            h == 0 -> 12
+            h > 12 -> h - 12
+            else -> h
+        }
+        return String.format("%02d:00 (%d %s)", h, displayHour, amPm)
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, fontWeight = FontWeight.Medium, fontSize = 14.sp)
+
+        Box {
+            OutlinedButton(
+                onClick = { expanded = true },
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp)
+            ) {
+                Text(formatHour(selectedHour), fontWeight = FontWeight.Bold, fontSize = 14.sp)
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                (0..23).forEach { hour ->
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                text = formatHour(hour),
+                                fontWeight = if (hour == selectedHour) FontWeight.Bold else FontWeight.Normal,
+                                color = if (hour == selectedHour) MaterialTheme.colorScheme.primary else Color.Unspecified
+                            )
+                        },
+                        onClick = {
+                            onHourSelected(hour)
+                            expanded = false
+                        }
+                    )
+                }
             }
         }
     }
