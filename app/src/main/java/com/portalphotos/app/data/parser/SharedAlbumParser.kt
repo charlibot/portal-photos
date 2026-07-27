@@ -131,7 +131,6 @@ class SharedAlbumParser(
         val videoInfos = videoCheckDeferreds.awaitAll()
 
         val items = mutableListOf<MediaItemEntity>()
-        val now = System.currentTimeMillis()
 
         for (index in urlList.indices) {
             val baseUrl = urlList[index]
@@ -139,6 +138,7 @@ class SharedAlbumParser(
 
             val highResPhotoUrl = "$baseUrl=w1920-h1080"
             val itemId = md5("$albumId-$baseUrl")
+            val itemTimestamp = extractTimestampForUrl(html, baseUrl) ?: (System.currentTimeMillis() - (index * 1000L))
 
             items.add(
                 MediaItemEntity(
@@ -152,7 +152,7 @@ class SharedAlbumParser(
                     width = 1920,
                     height = 1080,
                     albumTitle = albumTitle,
-                    timestamp = now - (index * 1000L)
+                    timestamp = itemTimestamp
                 )
             )
         }
@@ -160,8 +160,19 @@ class SharedAlbumParser(
         items
     }
 
+    private fun extractTimestampForUrl(html: String, baseUrl: String): Long? {
+        val idx = html.indexOf(baseUrl)
+        if (idx != -1) {
+            val chunk = html.substring(idx, (idx + 1000).coerceAtMost(html.length))
+            val tsMatcher = Pattern.compile("""\b(1[5-8]\d{11})\b""").matcher(chunk)
+            if (tsMatcher.find()) {
+                return tsMatcher.group(1)?.toLongOrNull()
+            }
+        }
+        return null
+    }
+
     private fun checkHighQualityVideoInfo(baseUrl: String): VideoStreamInfo {
-        // First check =dv format (Download Video endpoint)
         try {
             val dvRequest = Request.Builder()
                 .url("$baseUrl=dv")
@@ -177,92 +188,75 @@ class SharedAlbumParser(
 
                 if (isVid) {
                     if (contentLength >= 5_000_000L) {
-                        // Real standalone video (>= 5 MB): Use =dv for original HD source MP4!
                         return VideoStreamInfo(isVideo = true, isLivePhoto = false, streamUrl = "$baseUrl=dv")
+                    } else if (contentLength in 1L..4_999_999L) {
+                        return VideoStreamInfo(isVideo = true, isLivePhoto = true, streamUrl = "$baseUrl=dv")
                     } else {
-                        // Live Photo / Motion Photo (< 5 MB): Use =m22 for Google's smooth 3.0s 60fps HD motion stream!
-                        return VideoStreamInfo(isVideo = true, isLivePhoto = true, streamUrl = "$baseUrl=m22")
+                        return VideoStreamInfo(isVideo = true, isLivePhoto = false, streamUrl = "$baseUrl=dv")
                     }
                 }
             }
         } catch (e: Exception) {
-            // Fallback to checking stream parameters below
-        }
-
-        // Fallback quality checks: =m37 (1080p) -> =m22 (720p) -> =m18 (360p)
-        val formatList = listOf("m37", "m22", "m18")
-
-        for (fmt in formatList) {
-            try {
-                val headRequest = Request.Builder()
-                    .url("$baseUrl=$fmt")
-                    .header("User-Agent", "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36")
-                    .head()
-                    .build()
-
-                client.newCall(headRequest).execute().use { response ->
-                    val contentType = response.header("Content-Type") ?: ""
-                    val contentLength = response.header("Content-Length")?.toLongOrNull() ?: 0L
-
-                    val isVid = response.isSuccessful || response.code == 200 || contentType.contains("video") || contentType.contains("mp4")
-
-                    if (isVid) {
-                        val isLive = (contentLength in 1L..1_500_000L)
-                        val streamUrl = "$baseUrl=$fmt"
-                        return VideoStreamInfo(isVideo = true, isLivePhoto = isLive, streamUrl = streamUrl)
-                    }
-                }
-            } catch (e: Exception) {
-                // Continue checking
-            }
+            // Ignore error
         }
 
         return VideoStreamInfo(isVideo = false, isLivePhoto = false, streamUrl = null)
     }
 
     private fun extractContinuationToken(html: String): String? {
-        val regex = Regex(""""([a-zA-Z0-9_-]{50,})"""")
-        val match = regex.find(html)
-        return match?.groupValues?.get(1)
+        val pattern = Pattern.compile("\"([^\"]+)\",\\s*\"AF_[^\"]+\"")
+        val matcher = pattern.matcher(html)
+        if (matcher.find()) {
+            val token = matcher.group(1)
+            if (token != null && token.length > 20 && !token.startsWith("http")) {
+                return token
+            }
+        }
+        return null
     }
 
-    private suspend fun fetchPaginatedMediaItems(albumId: String, albumTitle: String, token: String): List<MediaItemEntity> {
+    private suspend fun fetchPaginatedMediaItems(
+        albumId: String,
+        albumTitle: String,
+        continuationToken: String
+    ): List<MediaItemEntity> = withContext(Dispatchers.IO) {
+        val items = mutableListOf<MediaItemEntity>()
+
         try {
-            val rpcUrl = "https://photos.google.com/_/PhotosUi/data/batchexecute"
             val requestBody = FormBody.Builder()
-                .add("f.req", """[[["sn12d","[null,null,\"$token\"]",null,"1"]]]""")
+                .add("f.req", "[[[\"sn:x\", \"[\\\"$continuationToken\\\"]\"]]]")
                 .build()
 
             val request = Request.Builder()
-                .url(rpcUrl)
-                .post(requestBody)
+                .url("https://photos.google.com/_/PhotosUi/data/batchexecute")
+                .header("Content-Type", "application/x-www-form-urlencoded;charset=UTF-8")
                 .header("User-Agent", "Dalvik/2.1.0 (Linux; U; Android 10)")
+                .post(requestBody)
                 .build()
 
             client.newCall(request).execute().use { response ->
                 if (response.isSuccessful) {
-                    val bodyStr = response.body?.string() ?: return emptyList()
-                    return parseMediaItemsFromHtml(bodyStr, albumId, albumTitle)
+                    val responseHtml = response.body?.string() ?: ""
+                    items.addAll(parseMediaItemsFromHtml(responseHtml, albumId, albumTitle))
                 }
             }
         } catch (e: Exception) {
-            // Ignore pagination errors and return initial page batch
+            e.printStackTrace()
         }
-        return emptyList()
+
+        items
     }
 
-    private fun cleanAlbumTitle(title: String): String {
-        return title
-            .replace(Regex("(?i)\\s*-\\s*Google Photos?.*"), "")
-            .replace(Regex("(?i)\\s*-\\s*Google.*"), "")
-            .replace(Regex("""\s*·\s*.*"""), "")
-            .replace(Regex("""[\uD83C-\uDBFF\uDC00-\uDFFF]+"""), "")
+    private fun cleanAlbumTitle(rawTitle: String): String {
+        return rawTitle
+            .replace(" - Google Photos", "")
+            .replace(" - Google Images", "")
             .trim()
             .ifEmpty { "Shared Album" }
     }
 
     private fun md5(input: String): String {
-        val bytes = MessageDigest.getInstance("MD5").digest(input.toByteArray())
-        return bytes.joinToString("") { "%02x".format(it) }
+        val md = MessageDigest.getInstance("MD5")
+        return md.digest(input.toByteArray()).joinToString("") { "%02x".format(it) }
     }
 }

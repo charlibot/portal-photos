@@ -46,14 +46,18 @@ object MediaMetadataExtractor {
             }
         }
 
+        // Check if EXIF contains an explicit DateTime tag (e.g. "2024:07:14 09:15:30")
+        val exifTimestamp = extractTimestampFromExif(exif)
+        val finalTimestamp = if (exifTimestamp != null && exifTimestamp > 0) exifTimestamp else timestampMs
+
         // 1. Determine TimeZone (From EXIF Offset / GPS or Fallback)
         val photoTimeZone = determineTimeZone(exif)
 
         // 2. Format Date: "Morning of 14 July 2024"
-        val formattedDate = formatTimeOfDayDate(timestampMs, photoTimeZone)
+        val formattedDate = formatTimeOfDayDate(finalTimestamp, photoTimeZone)
 
         // 3. Format Relative Age: "2 years ago"
-        val relativeAge = formatRelativeAge(timestampMs)
+        val relativeAge = formatRelativeAge(finalTimestamp)
 
         // 4. Reverse Geocode GPS Location if present
         val locationName = extractLocationName(context, exif)
@@ -76,6 +80,22 @@ object MediaMetadataExtractor {
             resolutionString = resString,
             albumTitle = albumTitle
         )
+    }
+
+    private fun extractTimestampFromExif(exif: ExifInterface?): Long? {
+        if (exif == null) return null
+        val dateTimeStr = exif.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+            ?: exif.getAttribute(ExifInterface.TAG_DATETIME)
+        if (!dateTimeStr.isNullOrBlank()) {
+            try {
+                val sdf = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US)
+                val date = sdf.parse(dateTimeStr)
+                if (date != null) return date.time
+            } catch (e: Exception) {
+                // Ignore parse errors
+            }
+        }
+        return null
     }
 
     private fun determineTimeZone(exif: ExifInterface?): TimeZone {
@@ -101,7 +121,6 @@ object MediaMetadataExtractor {
     }
 
     private fun getTzIdFromCoords(lat: Double, lng: Double): String? {
-        // Simple rough longitude approximation for TimeZone when offline
         val hoursOffset = (lng / 15.0).toInt()
         return if (hoursOffset >= 0) "GMT+$hoursOffset" else "GMT$hoursOffset"
     }
@@ -152,7 +171,6 @@ object MediaMetadataExtractor {
         return try {
             val geocoder = Geocoder(context, Locale.getDefault())
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                // Return fallback synchronously for instant display
                 "${String.format(Locale.US, "%.2f", latLong[0])}°, ${String.format(Locale.US, "%.2f", latLong[1])}°"
             } else {
                 @Suppress("DEPRECATION")
@@ -176,7 +194,6 @@ object MediaMetadataExtractor {
 
         if (model.isNullOrBlank()) return make
 
-        // Clean up duplicated make in model (e.g., "Apple iPhone 15 Pro")
         if (make != null && model.startsWith(make, ignoreCase = true)) {
             return model
         }
@@ -202,6 +219,7 @@ object MediaMetadataExtractor {
             }
         }
 
+        @Suppress("DEPRECATION")
         val iso = exif.getAttribute(ExifInterface.TAG_ISO_SPEED_RATINGS)
         if (!iso.isNullOrBlank()) parts.add("ISO $iso")
 

@@ -67,8 +67,13 @@ class ViewerViewModel(
             e.printStackTrace()
         }
 
-        // Periodic Background Album Refresh Loop (Every 1 hour)
+        // Trigger immediate album refresh on startup to parse true item timestamps, then refresh hourly
         viewModelScope.launch {
+            try {
+                repository.refreshAllAlbums()
+            } catch (e: Exception) {
+                // Ignore initial sync error
+            }
             while (true) {
                 delay(3600_000L) // 1 hour
                 try {
