@@ -189,7 +189,7 @@ fun SettingsSheet(
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 allAlbums.forEach { album ->
                                     val syncedDate = remember(album.lastSyncedAt) {
-                                        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(album.lastSyncedAt))
+                                        SimpleDateFormat("d MMMM yyyy, HH:mm", Locale.getDefault()).format(Date(album.lastSyncedAt))
                                     }
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
@@ -208,7 +208,7 @@ fun SettingsSheet(
                                                 fontSize = 15.sp
                                             )
                                             Text(
-                                                text = "${album.itemCount} items • Synced $syncedDate",
+                                                text = "${album.itemCount} items • Last sync: $syncedDate",
                                                 fontSize = 12.sp,
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                             )

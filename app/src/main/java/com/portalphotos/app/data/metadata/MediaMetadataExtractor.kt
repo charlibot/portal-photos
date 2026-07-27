@@ -59,9 +59,9 @@ object MediaMetadataExtractor {
         // 3. Format Relative Age: "2 years ago"
         val relativeAge = formatRelativeAge(finalTimestamp)
 
-        // 4. Reverse Geocode GPS Location if present, otherwise fall back to Album Title with parens dates stripped
+        // 4. Reverse Geocode GPS Location if present, otherwise fall back to Album Title
         val parsedLocation = extractLocationName(context, exif)
-        val locationName = parsedLocation ?: sanitizeLocationTitle(albumTitle)
+        val locationName = parsedLocation ?: albumTitle.ifBlank { null }
 
         // 5. Extract Camera Make & Model
         val cameraModel = extractCameraModel(exif)
@@ -81,17 +81,6 @@ object MediaMetadataExtractor {
             resolutionString = resString,
             albumTitle = albumTitle
         )
-    }
-
-    private fun sanitizeLocationTitle(rawTitle: String): String? {
-        if (rawTitle.isBlank()) return null
-        var title = rawTitle
-
-        // Strip dates in parentheses e.g. "(July 2026)" or "(2024)"
-        title = title.replace(Regex("""\s*\([A-Za-z0-9\s,-]+\)"""), "")
-
-        val clean = title.trim()
-        return clean.ifBlank { null }
     }
 
     private fun extractTimestampFromExif(exif: ExifInterface?): Long? {

@@ -264,15 +264,11 @@ class SharedAlbumParser(
     }
 
     private fun cleanAlbumTitle(rawTitle: String): String {
-        var title = rawTitle
+        return rawTitle
             .replace(" - Google Photos", "")
             .replace(" - Google Images", "")
             .trim()
-
-        // Strip dates in parentheses e.g. "(July 2026)" or "(2024)"
-        title = title.replace(Regex("""\s*\([A-Za-z0-9\s,-]+\)"""), "")
-
-        return title.trim().ifEmpty { "Shared Album" }
+            .ifEmpty { "Shared Album" }
     }
 
     private fun md5(input: String): String {
