@@ -52,3 +52,8 @@ Icon
 *.userosv
 *.suo
 *.userprefs
+
+# Screenshots and Scratch DB files
+screen.png
+*.png
+*.sqlite*
