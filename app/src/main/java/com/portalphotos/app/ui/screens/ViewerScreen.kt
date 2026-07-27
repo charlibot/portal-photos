@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.ChevronLeft
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
@@ -35,14 +36,17 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.portalphotos.app.data.metadata.MediaMetadataExtractor
 import com.portalphotos.app.data.model.MediaItem
 import com.portalphotos.app.ui.components.ClockOverlay
 import com.portalphotos.app.ui.components.ImageViewer
+import com.portalphotos.app.ui.components.MetadataSheet
 import com.portalphotos.app.ui.components.SettingsSheet
 import com.portalphotos.app.ui.components.VideoPlayer
 import com.portalphotos.app.ui.viewmodel.ViewerViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 import java.util.Calendar
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -62,6 +66,7 @@ fun ViewerScreen(
     val uiMessage by viewModel.uiMessage.collectAsState()
 
     var showSettingsSheet by remember { mutableStateOf(false) }
+    var showMetadataSheet by remember { mutableStateOf(false) }
     var showControlsOverlay by remember { mutableStateOf(true) }
 
     // Sleep Mode State Management
@@ -110,6 +115,39 @@ fun ViewerScreen(
         initialPage = initialPage,
         pageCount = { virtualPageCount }
     )
+
+    // Compute Metadata for currently active media item
+    val activeItem = remember(pagerState.settledPage, mediaItems) {
+        if (mediaItems.isNotEmpty()) {
+            val actualIndex = pagerState.settledPage % mediaItems.size
+            mediaItems.getOrNull(actualIndex)
+        } else null
+    }
+
+    val activeMetadata = remember(activeItem) {
+        val item = activeItem
+        if (item != null) {
+            val cachedFile: File? = try {
+                context.cacheDir.resolve("image_cache").listFiles()?.firstOrNull()
+            } catch (e: Exception) {
+                null
+            }
+
+            val (w, h) = when (item) {
+                is MediaItem.Photo -> Pair(item.width, item.height)
+                is MediaItem.Video -> Pair(item.width, item.height)
+            }
+
+            MediaMetadataExtractor.extractMetadata(
+                context = context,
+                imageFile = cachedFile,
+                timestampMs = item.timestamp,
+                albumTitle = item.albumTitle,
+                width = w,
+                height = h
+            )
+        } else null
+    }
 
     // Show Toast messages from ViewModel
     LaunchedEffect(uiMessage) {
@@ -298,6 +336,25 @@ fun ViewerScreen(
                 )
             }
 
+            // Ambient 1-Line HUD Caption (Bottom Left)
+            if (userSettings.showAmbientCaption && activeMetadata != null && !isSleepingNow) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomStart)
+                        .padding(start = 24.dp, bottom = 28.dp)
+                        .clip(RoundedCornerShape(16.dp))
+                        .background(Color.Black.copy(alpha = 0.6f))
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                ) {
+                    Text(
+                        text = activeMetadata.formattedDate + (activeMetadata.locationName?.let { " • $it" } ?: ""),
+                        color = Color.White.copy(alpha = 0.9f),
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+
             // Top Progress Bar for Active Slideshow Playback Countdown
             val currentItem = mediaItems.getOrNull(pagerState.settledPage % mediaItems.size)
             val isStillSlide = currentItem is MediaItem.Photo || (currentItem is MediaItem.Video && currentItem.isLivePhoto)
@@ -410,7 +467,7 @@ fun ViewerScreen(
                     }
                 }
 
-                // Consolidated Glassmorphic Bottom Control Bar: Prev / Play-Pause / Audio / Settings / Next
+                // Consolidated Glassmorphic Bottom Control Bar: Prev / Play-Pause / Audio / Info / Settings / Next
                 if (mediaItems.isNotEmpty()) {
                     Row(
                         modifier = Modifier
@@ -466,7 +523,19 @@ fun ViewerScreen(
                             )
                         }
 
-                        // 4. Settings Gear Button
+                        // 4. Metadata Info Button (ℹ️)
+                        IconButton(
+                            onClick = { showMetadataSheet = true }
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Photo Information",
+                                tint = Color.White,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
+
+                        // 5. Settings Gear Button
                         IconButton(
                             onClick = { showSettingsSheet = true }
                         ) {
@@ -478,7 +547,7 @@ fun ViewerScreen(
                             )
                         }
 
-                        // 5. Next Photo Button
+                        // 6. Next Photo Button
                         IconButton(
                             onClick = {
                                 scope.launch {
@@ -500,6 +569,14 @@ fun ViewerScreen(
                     }
                 }
             }
+        }
+
+        // Photo Metadata Information Sheet Modal (ℹ️)
+        if (showMetadataSheet && activeMetadata != null) {
+            MetadataSheet(
+                metadata = activeMetadata,
+                onDismiss = { showMetadataSheet = false }
+            )
         }
 
         // Settings Modal Sheet

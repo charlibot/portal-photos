@@ -33,7 +33,8 @@ data class UserSettings(
     val showProgressBar: Boolean = false,
     val sleepScheduleEnabled: Boolean = true,
     val sleepStartHour: Int = 23,
-    val sleepEndHour: Int = 8
+    val sleepEndHour: Int = 8,
+    val showAmbientCaption: Boolean = false
 )
 
 class AppPreferences(private val context: Context) {
@@ -55,6 +56,7 @@ class AppPreferences(private val context: Context) {
         val SLEEP_SCHEDULE_ENABLED = booleanPreferencesKey("sleep_schedule_enabled")
         val SLEEP_START_HOUR = intPreferencesKey("sleep_start_hour")
         val SLEEP_END_HOUR = intPreferencesKey("sleep_end_hour")
+        val SHOW_AMBIENT_CAPTION = booleanPreferencesKey("show_ambient_caption")
     }
 
     val userSettingsFlow: Flow<UserSettings> = context.dataStore.data
@@ -82,7 +84,8 @@ class AppPreferences(private val context: Context) {
                 showProgressBar = prefs[PreferenceKeys.SHOW_PROGRESS_BAR] ?: false,
                 sleepScheduleEnabled = prefs[PreferenceKeys.SLEEP_SCHEDULE_ENABLED] ?: true,
                 sleepStartHour = prefs[PreferenceKeys.SLEEP_START_HOUR] ?: 23,
-                sleepEndHour = prefs[PreferenceKeys.SLEEP_END_HOUR] ?: 8
+                sleepEndHour = prefs[PreferenceKeys.SLEEP_END_HOUR] ?: 8,
+                showAmbientCaption = prefs[PreferenceKeys.SHOW_AMBIENT_CAPTION] ?: false
             )
         }
 
@@ -148,5 +151,9 @@ class AppPreferences(private val context: Context) {
 
     suspend fun updateSleepEndHour(endHour: Int) {
         context.dataStore.edit { it[PreferenceKeys.SLEEP_END_HOUR] = endHour }
+    }
+
+    suspend fun updateShowAmbientCaption(enabled: Boolean) {
+        context.dataStore.edit { it[PreferenceKeys.SHOW_AMBIENT_CAPTION] = enabled }
     }
 }

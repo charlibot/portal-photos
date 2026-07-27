@@ -429,6 +429,22 @@ fun SettingsSheet(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth()
                         ) {
+                            Text("Show Ambient Date Captions")
+                            Switch(
+                                checked = userSettings.showAmbientCaption,
+                                onCheckedChange = { isChecked ->
+                                    scope.launch {
+                                        viewModel.appPreferences.updateShowAmbientCaption(isChecked)
+                                    }
+                                }
+                            )
+                        }
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
                             Text("Show Top Progress Bar")
                             Switch(
                                 checked = userSettings.showProgressBar,
