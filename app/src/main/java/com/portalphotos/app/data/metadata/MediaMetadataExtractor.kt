@@ -59,8 +59,9 @@ object MediaMetadataExtractor {
         // 3. Format Relative Age: "2 years ago"
         val relativeAge = formatRelativeAge(finalTimestamp)
 
-        // 4. Reverse Geocode GPS Location if present
-        val locationName = extractLocationName(context, exif)
+        // 4. Reverse Geocode GPS Location if present, otherwise fall back to Album Title
+        val parsedLocation = extractLocationName(context, exif)
+        val locationName = parsedLocation ?: albumTitle.ifBlank { null }
 
         // 5. Extract Camera Make & Model
         val cameraModel = extractCameraModel(exif)
