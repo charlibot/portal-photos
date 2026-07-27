@@ -161,13 +161,14 @@ class SharedAlbumParser(
     }
 
     private fun extractTimestampForUrl(html: String, baseUrl: String): Long? {
-        val idx = html.indexOf(baseUrl)
+        // Use lastIndexOf to locate the occurrence inside the Google Photos AF_initDataCallback / _W_pb data script block!
+        val idx = html.lastIndexOf(baseUrl)
         if (idx != -1) {
-            val start = (idx - 200).coerceAtLeast(0)
-            val end = (idx + 1500).coerceAtMost(html.length)
+            val start = (idx - 100).coerceAtLeast(0)
+            val end = (idx + 1800).coerceAtMost(html.length)
             val chunk = html.substring(start, end)
 
-            // Try 13-digit epoch ms (e.g. 1650000000000)
+            // Try 13-digit epoch ms (e.g. 1784707094790)
             val msMatcher = Pattern.compile("""\b(1[4-8]\d{11})\b""").matcher(chunk)
             if (msMatcher.find()) {
                 val ms = msMatcher.group(1)?.toLongOrNull()
@@ -176,7 +177,7 @@ class SharedAlbumParser(
                 }
             }
 
-            // Try 10-digit epoch seconds (e.g. 1650000000)
+            // Try 10-digit epoch seconds (e.g. 1784707094)
             val secMatcher = Pattern.compile("""\b(1[4-8]\d{8})\b""").matcher(chunk)
             if (secMatcher.find()) {
                 val sec = secMatcher.group(1)?.toLongOrNull()
