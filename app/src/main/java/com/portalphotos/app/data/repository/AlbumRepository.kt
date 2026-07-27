@@ -27,21 +27,14 @@ class AlbumRepository(
     val mediaItemsForSelectedAlbums: Flow<List<MediaItem>> = albumDao.getMediaItemsForSelectedAlbums()
         .map { entities -> entities.map { it.toDomainModel() } }
 
-    /**
-     * Non-blocking Async Album Addition:
-     * Instantly inserts a placeholder album entry into Room DB and returns immediately,
-     * then fetches and populates album media items asynchronously in the background.
-     */
     fun addAlbumUrlAsync(shareUrl: String, onComplete: ((Result<AlbumEntity>) -> Unit)? = null) {
         val cleanUrl = shareUrl.trim()
         val albumId = md5(cleanUrl)
 
         bgScope.launch {
             try {
-                // Check if album already exists
                 val existing = albumDao.getAlbumById(albumId)
                 if (existing == null) {
-                    // Create placeholder entry immediately
                     val placeholder = AlbumEntity(
                         id = albumId,
                         title = "Fetching album...",
@@ -54,25 +47,8 @@ class AlbumRepository(
                     albumDao.insertAlbum(placeholder)
                 }
 
-                // Perform asynchronous network fetch & parse in background
-                val parsedResult = parser.parseAlbumUrl(cleanUrl)
-
-                val updatedAlbum = AlbumEntity(
-                    id = albumId,
-                    title = parsedResult.title,
-                    shareUrl = cleanUrl,
-                    coverImageUrl = parsedResult.coverImageUrl ?: parsedResult.mediaItems.firstOrNull()?.mediaUrl,
-                    itemCount = parsedResult.mediaItems.size,
-                    isSelected = true,
-                    lastSyncedAt = System.currentTimeMillis()
-                )
-
-                albumDao.insertAlbum(updatedAlbum)
-                if (parsedResult.mediaItems.isNotEmpty()) {
-                    albumDao.insertMediaItems(parsedResult.mediaItems)
-                }
-
-                onComplete?.invoke(Result.success(updatedAlbum))
+                val result = addAlbumFromUrl(cleanUrl)
+                onComplete?.invoke(result)
             } catch (e: Exception) {
                 onComplete?.invoke(Result.failure(e))
             }
@@ -95,6 +71,7 @@ class AlbumRepository(
 
             albumDao.insertAlbum(albumEntity)
             if (parsedResult.mediaItems.isNotEmpty()) {
+                albumDao.deleteMediaItemsForAlbum(parsedResult.id)
                 albumDao.insertMediaItems(parsedResult.mediaItems)
             }
 
@@ -127,6 +104,7 @@ class AlbumRepository(
 
             albumDao.insertAlbum(updatedAlbum)
             if (parsedResult.mediaItems.isNotEmpty()) {
+                albumDao.deleteMediaItemsForAlbum(albumId)
                 albumDao.insertMediaItems(parsedResult.mediaItems)
             }
         }
@@ -139,35 +117,35 @@ class AlbumRepository(
         }
     }
 
-    private fun MediaItemEntity.toDomainModel(): MediaItem {
-        return if (isVideo && !videoStreamUrl.isNullOrEmpty()) {
-            MediaItem.Video(
-                id = id,
-                albumId = albumId,
-                albumTitle = albumTitle,
-                displayUrl = mediaUrl,
-                streamUrl = videoStreamUrl,
-                isLivePhoto = isLivePhoto,
-                durationMs = durationMs,
-                width = width,
-                height = height,
-                timestamp = timestamp
-            )
-        } else {
-            MediaItem.Photo(
-                id = id,
-                albumId = albumId,
-                albumTitle = albumTitle,
-                displayUrl = mediaUrl,
-                width = width,
-                height = height,
-                timestamp = timestamp
-            )
-        }
-    }
-
     private fun md5(input: String): String {
-        val bytes = MessageDigest.getInstance("MD5").digest(input.toByteArray())
-        return bytes.joinToString("") { "%02x".format(it) }
+        val md = MessageDigest.getInstance("MD5")
+        return md.digest(input.toByteArray()).joinToString("") { "%02x".format(it) }
+    }
+}
+
+fun MediaItemEntity.toDomainModel(): MediaItem {
+    return if (this.isVideo) {
+        MediaItem.Video(
+            id = this.id,
+            albumId = this.albumId,
+            albumTitle = this.albumTitle,
+            displayUrl = this.mediaUrl,
+            streamUrl = this.videoStreamUrl ?: this.mediaUrl,
+            isLivePhoto = this.isLivePhoto,
+            durationMs = this.durationMs,
+            width = this.width,
+            height = this.height,
+            timestamp = this.timestamp
+        )
+    } else {
+        MediaItem.Photo(
+            id = this.id,
+            albumId = this.albumId,
+            albumTitle = this.albumTitle,
+            displayUrl = this.mediaUrl,
+            width = this.width,
+            height = this.height,
+            timestamp = this.timestamp
+        )
     }
 }

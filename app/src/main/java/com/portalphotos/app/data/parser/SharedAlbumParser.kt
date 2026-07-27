@@ -163,10 +163,26 @@ class SharedAlbumParser(
     private fun extractTimestampForUrl(html: String, baseUrl: String): Long? {
         val idx = html.indexOf(baseUrl)
         if (idx != -1) {
-            val chunk = html.substring(idx, (idx + 1000).coerceAtMost(html.length))
-            val tsMatcher = Pattern.compile("""\b(1[5-8]\d{11})\b""").matcher(chunk)
-            if (tsMatcher.find()) {
-                return tsMatcher.group(1)?.toLongOrNull()
+            val start = (idx - 200).coerceAtLeast(0)
+            val end = (idx + 1500).coerceAtMost(html.length)
+            val chunk = html.substring(start, end)
+
+            // Try 13-digit epoch ms (e.g. 1650000000000)
+            val msMatcher = Pattern.compile("""\b(1[4-8]\d{11})\b""").matcher(chunk)
+            if (msMatcher.find()) {
+                val ms = msMatcher.group(1)?.toLongOrNull()
+                if (ms != null && ms in 1000000000000L..2000000000000L) {
+                    return ms
+                }
+            }
+
+            // Try 10-digit epoch seconds (e.g. 1650000000)
+            val secMatcher = Pattern.compile("""\b(1[4-8]\d{8})\b""").matcher(chunk)
+            if (secMatcher.find()) {
+                val sec = secMatcher.group(1)?.toLongOrNull()
+                if (sec != null && sec in 1000000000L..2000000000L) {
+                    return sec * 1000L
+                }
             }
         }
         return null
