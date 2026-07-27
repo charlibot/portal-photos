@@ -116,7 +116,7 @@ fun ViewerScreen(
         pageCount = { virtualPageCount }
     )
 
-    // Compute Metadata for currently active media item
+    // Compute Metadata for currently active media item safely
     val activeItem = remember(pagerState.settledPage, mediaItems) {
         if (mediaItems.isNotEmpty()) {
             val actualIndex = pagerState.settledPage % mediaItems.size
@@ -281,12 +281,16 @@ fun ViewerScreen(
             HorizontalPager(
                 state = pagerState,
                 key = { page ->
-                    val actualIndex = page % mediaItems.size
-                    "${mediaItems[actualIndex].id}_$page"
+                    if (mediaItems.isNotEmpty()) {
+                        val actualIndex = page % mediaItems.size
+                        "${mediaItems[actualIndex].id}_$page"
+                    } else {
+                        "empty_$page"
+                    }
                 },
                 modifier = Modifier.fillMaxSize()
             ) { page ->
-                val actualIndex = page % mediaItems.size
+                val actualIndex = if (mediaItems.isNotEmpty()) page % mediaItems.size else 0
                 val item = mediaItems.getOrNull(actualIndex)
                 if (item != null) {
                     val isActivePage = (page == pagerState.settledPage)
