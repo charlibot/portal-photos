@@ -9,7 +9,7 @@ import com.portalphotos.app.data.model.MediaItemEntity
 
 @Database(
     entities = [AlbumEntity::class, MediaItemEntity::class],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class PortalPhotosDatabase : RoomDatabase() {
