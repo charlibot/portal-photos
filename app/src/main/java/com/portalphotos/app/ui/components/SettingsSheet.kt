@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Bedtime
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -21,6 +22,9 @@ import androidx.compose.ui.unit.sp
 import com.portalphotos.app.data.prefs.*
 import com.portalphotos.app.ui.viewmodel.ViewerViewModel
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -148,11 +152,30 @@ fun SettingsSheet(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            text = "Album Selection (Check multiple to merge)",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 16.sp
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Album Selection (Check multiple to merge)",
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 16.sp
+                            )
+                            if (allAlbums.isNotEmpty()) {
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            viewModel.repository.refreshAllAlbums()
+                                        }
+                                    }
+                                ) {
+                                    Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(18.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Re-sync All", fontSize = 13.sp)
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.height(8.dp))
 
                         if (allAlbums.isEmpty()) {
@@ -165,6 +188,9 @@ fun SettingsSheet(
                         } else {
                             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                 allAlbums.forEach { album ->
+                                    val syncedDate = remember(album.lastSyncedAt) {
+                                        SimpleDateFormat("MMM d, HH:mm", Locale.getDefault()).format(Date(album.lastSyncedAt))
+                                    }
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.fillMaxWidth()
@@ -182,9 +208,22 @@ fun SettingsSheet(
                                                 fontSize = 15.sp
                                             )
                                             Text(
-                                                text = "${album.itemCount} items",
+                                                text = "${album.itemCount} items • Synced $syncedDate",
                                                 fontSize = 12.sp,
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                            )
+                                        }
+                                        IconButton(
+                                            onClick = {
+                                                scope.launch {
+                                                    viewModel.repository.refreshAlbum(album.id)
+                                                }
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = "Re-sync Album",
+                                                tint = MaterialTheme.colorScheme.primary
                                             )
                                         }
                                         IconButton(onClick = { viewModel.deleteAlbum(album.id) }) {

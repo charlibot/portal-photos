@@ -161,7 +161,6 @@ class SharedAlbumParser(
     }
 
     private fun extractTimestampForUrl(html: String, baseUrl: String): Long? {
-        // Use lastIndexOf to locate the occurrence inside the Google Photos AF_initDataCallback / _W_pb data script block!
         val idx = html.lastIndexOf(baseUrl)
         if (idx != -1) {
             val start = (idx - 100).coerceAtLeast(0)
@@ -265,11 +264,23 @@ class SharedAlbumParser(
     }
 
     private fun cleanAlbumTitle(rawTitle: String): String {
-        return rawTitle
+        var title = rawTitle
             .replace(" - Google Photos", "")
             .replace(" - Google Images", "")
             .trim()
-            .ifEmpty { "Shared Album" }
+
+        // 1. Remove date suffixes after '·', '|', '@'
+        if (title.contains("·")) title = title.substringBefore("·")
+        if (title.contains("|")) title = title.substringBefore("|")
+        if (title.contains("@")) title = title.substringBefore("@")
+
+        // 2. Remove parenthetical years/months (e.g. "(July 2026)", "(2024)")
+        title = title.replace(Regex("""\s*\([A-Za-z0-9\s,-]+\)"""), "")
+
+        // 3. Remove emojis and clean whitespace
+        title = title.replace(Regex("""[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]"""), "")
+
+        return title.trim().ifEmpty { "Shared Album" }
     }
 
     private fun md5(input: String): String {
