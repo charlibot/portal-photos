@@ -342,6 +342,22 @@ fun ViewerScreen(
 
             // Ambient 1-Line HUD Caption (Bottom Left)
             if (userSettings.showAmbientCaption && activeMetadata != null && !isSleepingNow) {
+                val cleanAlbumTitle = remember(activeMetadata?.albumTitle) {
+                    activeMetadata?.albumTitle
+                        ?.replace(Regex("""\s*\([A-Za-z0-9\s,-]+\)"""), "")
+                        ?.trim() ?: ""
+                }
+                val ambientText = remember(activeMetadata?.formattedDate, activeMetadata?.locationName, cleanAlbumTitle) {
+                    buildString {
+                        append(activeMetadata?.formattedDate ?: "")
+                        if (!activeMetadata?.locationName.isNullOrBlank()) {
+                            append(" • ${activeMetadata?.locationName}")
+                        } else if (cleanAlbumTitle.isNotBlank()) {
+                            append(" • $cleanAlbumTitle")
+                        }
+                    }
+                }
+
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -351,7 +367,7 @@ fun ViewerScreen(
                         .padding(horizontal = 16.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        text = activeMetadata.formattedDate + (activeMetadata.locationName?.let { " • $it" } ?: ""),
+                        text = ambientText,
                         color = Color.White.copy(alpha = 0.9f),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Medium
