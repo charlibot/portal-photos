@@ -269,16 +269,8 @@ class SharedAlbumParser(
             .replace(" - Google Images", "")
             .trim()
 
-        // 1. Remove date suffixes after '·', '|', '@'
-        if (title.contains("·")) title = title.substringBefore("·")
-        if (title.contains("|")) title = title.substringBefore("|")
-        if (title.contains("@")) title = title.substringBefore("@")
-
-        // 2. Remove parenthetical years/months (e.g. "(July 2026)", "(2024)")
+        // Strip dates in parentheses e.g. "(July 2026)" or "(2024)"
         title = title.replace(Regex("""\s*\([A-Za-z0-9\s,-]+\)"""), "")
-
-        // 3. Remove emojis and clean whitespace
-        title = title.replace(Regex("""[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]"""), "")
 
         return title.trim().ifEmpty { "Shared Album" }
     }

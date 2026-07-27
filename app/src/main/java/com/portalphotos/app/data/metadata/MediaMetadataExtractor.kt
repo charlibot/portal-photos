@@ -59,7 +59,7 @@ object MediaMetadataExtractor {
         // 3. Format Relative Age: "2 years ago"
         val relativeAge = formatRelativeAge(finalTimestamp)
 
-        // 4. Reverse Geocode GPS Location if present, otherwise fall back to Cleaned Album Title
+        // 4. Reverse Geocode GPS Location if present, otherwise fall back to Album Title with parens dates stripped
         val parsedLocation = extractLocationName(context, exif)
         val locationName = parsedLocation ?: sanitizeLocationTitle(albumTitle)
 
@@ -87,16 +87,8 @@ object MediaMetadataExtractor {
         if (rawTitle.isBlank()) return null
         var title = rawTitle
 
-        // 1. Remove date suffixes after '·', '|', '@'
-        if (title.contains("·")) title = title.substringBefore("·")
-        if (title.contains("|")) title = title.substringBefore("|")
-        if (title.contains("@")) title = title.substringBefore("@")
-
-        // 2. Remove parenthetical years/months (e.g. "(July 2026)", "(2024)")
+        // Strip dates in parentheses e.g. "(July 2026)" or "(2024)"
         title = title.replace(Regex("""\s*\([A-Za-z0-9\s,-]+\)"""), "")
-
-        // 3. Remove emojis and clean whitespace
-        title = title.replace(Regex("""[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]"""), "")
 
         val clean = title.trim()
         return clean.ifBlank { null }
