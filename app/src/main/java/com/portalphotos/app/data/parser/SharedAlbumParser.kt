@@ -10,6 +10,9 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.jsoup.Jsoup
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
@@ -17,7 +20,8 @@ data class ParsedAlbumResult(
     val id: String,
     val title: String,
     val coverImageUrl: String?,
-    val mediaItems: List<MediaItemEntity>
+    val mediaItems: List<MediaItemEntity>,
+    val albumDate: String? = null
 )
 
 data class VideoStreamInfo(
@@ -58,8 +62,6 @@ class SharedAlbumParser(
 
         val targetDoc = Jsoup.parse(targetHtml)
 
-        // Prefer standard HTML <title> tag first (e.g. "Summer and The Vacation (July 2026) - Google Photos")
-        // because Google Photos appends social sharing metadata (" · Wednesday, Jul 22 📸") to meta og:title.
         val pageTitle = targetDoc.title()
         val rawTitle = if (pageTitle.isNotBlank() && pageTitle.contains("- Google Photos")) {
             pageTitle.substringBefore("- Google Photos").trim()
@@ -86,11 +88,28 @@ class SharedAlbumParser(
             mediaItems.addAll(paginatedItems)
         }
 
+        // Extract human-readable album date from og:title or photo timestamps
+        val rawOgTitle = targetDoc.select("meta[property=og:title]").attr("content")
+        val dateFromOgTitle = if (rawOgTitle.contains("·")) {
+            rawOgTitle.substringAfter("·")
+                .replace(Regex("""[\uD800-\uDBFF][\uDC00-\uDFFF]|[\u2600-\u27BF]"""), "")
+                .trim()
+        } else null
+
+        val validTsList = mediaItems.map { it.timestamp }.filter { it in 1000000000000L..2000000000000L }
+        val minTs = validTsList.minOrNull()
+        val dateFromTs = if (minTs != null) {
+            SimpleDateFormat("EEEE, MMM d, yyyy", Locale.getDefault()).format(Date(minTs))
+        } else null
+
+        val albumDate = dateFromOgTitle ?: dateFromTs
+
         ParsedAlbumResult(
             id = albumId,
             title = title,
             coverImageUrl = coverImage,
-            mediaItems = mediaItems.distinctBy { it.id }
+            mediaItems = mediaItems.distinctBy { it.id },
+            albumDate = albumDate
         )
     }
 
