@@ -191,6 +191,16 @@ fun SettingsSheet(
                                     val syncedDate = remember(album.lastSyncedAt) {
                                         SimpleDateFormat("d MMMM yyyy, HH:mm", Locale.getDefault()).format(Date(album.lastSyncedAt))
                                     }
+                                    val subtitleText = remember(album.itemCount, album.albumDate, syncedDate) {
+                                        buildString {
+                                            append("${album.itemCount} items")
+                                            if (!album.albumDate.isNullOrBlank()) {
+                                                append(" • ${album.albumDate}")
+                                            }
+                                            append(" • Last sync: $syncedDate")
+                                        }
+                                    }
+
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
                                         modifier = Modifier.fillMaxWidth()
@@ -208,7 +218,7 @@ fun SettingsSheet(
                                                 fontSize = 15.sp
                                             )
                                             Text(
-                                                text = "${album.itemCount} items • Last sync: $syncedDate",
+                                                text = subtitleText,
                                                 fontSize = 12.sp,
                                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                                             )

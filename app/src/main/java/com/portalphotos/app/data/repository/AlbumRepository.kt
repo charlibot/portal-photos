@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.security.MessageDigest
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class AlbumRepository(
     private val albumDao: AlbumDao,
@@ -58,6 +61,10 @@ class AlbumRepository(
     suspend fun addAlbumFromUrl(shareUrl: String): Result<AlbumEntity> {
         return runCatching {
             val parsedResult = parser.parseAlbumUrl(shareUrl)
+            val firstTs = parsedResult.mediaItems.firstOrNull()?.timestamp
+            val formattedAlbumDate = if (firstTs != null && firstTs > 0) {
+                SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(firstTs))
+            } else null
 
             val albumEntity = AlbumEntity(
                 id = parsedResult.id,
@@ -66,7 +73,8 @@ class AlbumRepository(
                 coverImageUrl = parsedResult.coverImageUrl ?: parsedResult.mediaItems.firstOrNull()?.mediaUrl,
                 itemCount = parsedResult.mediaItems.size,
                 isSelected = true,
-                lastSyncedAt = System.currentTimeMillis()
+                lastSyncedAt = System.currentTimeMillis(),
+                albumDate = formattedAlbumDate
             )
 
             albumDao.insertAlbum(albumEntity)
@@ -94,12 +102,17 @@ class AlbumRepository(
                 ?: throw IllegalArgumentException("Album not found")
 
             val parsedResult = parser.parseAlbumUrl(album.shareUrl)
+            val firstTs = parsedResult.mediaItems.firstOrNull()?.timestamp
+            val formattedAlbumDate = if (firstTs != null && firstTs > 0) {
+                SimpleDateFormat("d MMMM yyyy", Locale.getDefault()).format(Date(firstTs))
+            } else null
 
             val updatedAlbum = album.copy(
                 title = parsedResult.title,
                 coverImageUrl = parsedResult.coverImageUrl ?: parsedResult.mediaItems.firstOrNull()?.mediaUrl ?: album.coverImageUrl,
                 itemCount = parsedResult.mediaItems.size,
-                lastSyncedAt = System.currentTimeMillis()
+                lastSyncedAt = System.currentTimeMillis(),
+                albumDate = formattedAlbumDate ?: album.albumDate
             )
 
             albumDao.insertAlbum(updatedAlbum)

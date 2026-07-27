@@ -13,7 +13,8 @@ data class AlbumEntity(
     val coverImageUrl: String? = null,
     val itemCount: Int = 0,
     val isSelected: Boolean = true,
-    val lastSyncedAt: Long = System.currentTimeMillis()
+    val lastSyncedAt: Long = System.currentTimeMillis(),
+    val albumDate: String? = null
 )
 
 @Entity(
