@@ -58,13 +58,20 @@ class SharedAlbumParser(
 
         val targetDoc = Jsoup.parse(targetHtml)
 
-        val rawTitle = targetDoc.select("meta[property=og:title]").attr("content").ifEmpty {
-            targetDoc.select("div.PpgQdd").text().ifEmpty {
-                targetDoc.select("meta[name=title]").attr("content").ifEmpty {
-                    targetDoc.title()
-                }
+        // Prefer standard HTML <title> tag first (e.g. "Summer and The Vacation (July 2026) - Google Photos")
+        // because Google Photos appends social sharing metadata (" · Wednesday, Jul 22 📸") to meta og:title.
+        val pageTitle = targetDoc.title()
+        val rawTitle = if (pageTitle.isNotBlank() && pageTitle.contains("- Google Photos")) {
+            pageTitle.substringBefore("- Google Photos").trim()
+        } else {
+            val ogTitle = targetDoc.select("meta[property=og:title]").attr("content")
+            if (ogTitle.isNotBlank()) {
+                ogTitle.substringBefore("·").trim()
+            } else {
+                targetDoc.select("div.PpgQdd").text().ifEmpty { "Shared Album" }
             }
         }
+
         val title = cleanAlbumTitle(rawTitle)
         val coverImage = targetDoc.select("meta[property=og:image]").attr("content").ifEmpty { null }
         val albumId = md5(cleanUrl)
