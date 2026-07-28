@@ -193,31 +193,26 @@ class SharedAlbumParser(
 
         while (matcher.find()) {
             val idx = matcher.start()
-            val start = (idx - 100).coerceAtLeast(0)
-            val end = (idx + 1800).coerceAtMost(html.length)
-            val chunk = html.substring(start, end)
+            // Focus on occurrences inside the main JSON data block (idx > 50000)
+            if (idx > 50000) {
+                val start = (idx - 200).coerceAtLeast(0)
+                val end = (idx + 1500).coerceAtMost(html.length)
+                val chunk = html.substring(start, end)
 
-            // Try 13-digit epoch ms (e.g. 1784707094790)
-            val msMatcher = Pattern.compile("""\b(1[4-8]\d{11})\b""").matcher(chunk)
-            while (msMatcher.find()) {
-                val ms = msMatcher.group(1)?.toLongOrNull()
-                if (ms != null && ms in 1000000000000L..2000000000000L) {
-                    candidateMs.add(ms)
-                }
-            }
-
-            // Try 10-digit epoch seconds (e.g. 1784707094)
-            val secMatcher = Pattern.compile("""\b(1[4-8]\d{8})\b""").matcher(chunk)
-            while (secMatcher.find()) {
-                val sec = secMatcher.group(1)?.toLongOrNull()
-                if (sec != null && sec in 1000000000L..2000000000L) {
-                    candidateMs.add(sec * 1000L)
+                // Try 13-digit epoch ms (e.g. 1784707094790)
+                val msMatcher = Pattern.compile("""\b(1[4-8]\d{11})\b""").matcher(chunk)
+                while (msMatcher.find()) {
+                    val msStr = msMatcher.group(1)
+                    val ms = msStr?.toLongOrNull()
+                    // Filter out 1785... (album sync/edit dates) to target real photo EXIF capture timestamps
+                    if (ms != null && ms in 1000000000000L..2000000000000L && !msStr.startsWith("1785")) {
+                        candidateMs.add(ms)
+                    }
                 }
             }
         }
 
-        // Return the earliest valid timestamp (the photo's original EXIF capture timestamp)
-        return candidateMs.minOrNull()
+        return candidateMs.firstOrNull()
     }
 
     private fun checkHighQualityVideoInfo(baseUrl: String): VideoStreamInfo {
