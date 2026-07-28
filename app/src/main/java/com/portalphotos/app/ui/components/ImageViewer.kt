@@ -79,8 +79,8 @@ fun ImageViewer(
         }
     }
 
-    // Ken Burns subtle zoom transition animation evaluated ONLY when enabled
-    val kenBurnsScale = if (transitionEffect == TransitionEffect.KEN_BURNS) {
+    // Ken Burns subtle zoom + gentle pan animation evaluated ONLY when enabled
+    val (kenBurnsScale, kenBurnsPanX, kenBurnsPanY) = if (transitionEffect == TransitionEffect.KEN_BURNS) {
         val infiniteTransition = rememberInfiniteTransition(label = "KenBurns")
         val scale by infiniteTransition.animateFloat(
             initialValue = 1.0f,
@@ -91,9 +91,27 @@ fun ImageViewer(
             ),
             label = "Scale"
         )
-        scale
+        val panX by infiniteTransition.animateFloat(
+            initialValue = -10f,
+            targetValue = 10f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 14000, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "PanX"
+        )
+        val panY by infiniteTransition.animateFloat(
+            initialValue = -6f,
+            targetValue = 6f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 12000, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "PanY"
+        )
+        Triple(scale, panX, panY)
     } else {
-        1.0f
+        Triple(1.0f, 0f, 0f)
     }
 
     Box(
@@ -123,7 +141,9 @@ fun ImageViewer(
                         .fillMaxSize()
                         .graphicsLayer(
                             scaleX = kenBurnsScale,
-                            scaleY = kenBurnsScale
+                            scaleY = kenBurnsScale,
+                            translationX = kenBurnsPanX,
+                            translationY = kenBurnsPanY
                         )
                 )
             }
@@ -137,7 +157,9 @@ fun ImageViewer(
                         .fillMaxSize()
                         .graphicsLayer(
                             scaleX = kenBurnsScale,
-                            scaleY = kenBurnsScale
+                            scaleY = kenBurnsScale,
+                            translationX = kenBurnsPanX,
+                            translationY = kenBurnsPanY
                         )
                 )
             }
@@ -155,7 +177,9 @@ fun ImageViewer(
                         .fillMaxSize()
                         .graphicsLayer(
                             scaleX = kenBurnsScale,
-                            scaleY = kenBurnsScale
+                            scaleY = kenBurnsScale,
+                            translationX = kenBurnsPanX,
+                            translationY = kenBurnsPanY
                         )
                 )
             }

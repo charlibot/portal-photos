@@ -409,7 +409,7 @@ fun SettingsSheet(
                 }
             }
 
-            // Section 6: Live Photos & Video Controls
+            // Section 6: Live Photos & Playback Controls
             item {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -457,6 +457,25 @@ fun SettingsSheet(
                                     label = { Text("Still Only") }
                                 )
                             }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Ken Burns Effect (Pan & Zoom)")
+                            Switch(
+                                checked = userSettings.transitionEffect == TransitionEffect.KEN_BURNS,
+                                onCheckedChange = { isChecked ->
+                                    scope.launch {
+                                        val newEffect = if (isChecked) TransitionEffect.KEN_BURNS else TransitionEffect.CROSSFADE
+                                        viewModel.appPreferences.updateTransitionEffect(newEffect)
+                                    }
+                                }
+                            )
                         }
 
                         Row(
