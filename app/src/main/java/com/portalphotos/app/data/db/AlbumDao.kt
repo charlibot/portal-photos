@@ -25,10 +25,10 @@ interface AlbumDao {
     @Query("DELETE FROM albums WHERE id = :albumId")
     suspend fun deleteAlbum(albumId: String)
 
-    @Query("SELECT media_items.* FROM media_items INNER JOIN albums ON media_items.albumId = albums.id WHERE albums.isSelected = 1 ORDER BY media_items.timestamp DESC")
+    @Query("SELECT media_items.* FROM media_items INNER JOIN albums ON media_items.albumId = albums.id WHERE albums.isSelected = 1 ORDER BY media_items.timestamp ASC")
     fun getMediaItemsForSelectedAlbums(): Flow<List<MediaItemEntity>>
 
-    @Query("SELECT * FROM media_items WHERE albumId = :albumId ORDER BY timestamp DESC")
+    @Query("SELECT * FROM media_items WHERE albumId = :albumId ORDER BY timestamp ASC")
     suspend fun getMediaItemsForAlbum(albumId: String): List<MediaItemEntity>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
