@@ -34,7 +34,7 @@ data class UserSettings(
     val sleepScheduleEnabled: Boolean = true,
     val sleepStartHour: Int = 23,
     val sleepEndHour: Int = 8,
-    val showAmbientCaption: Boolean = false
+    val showAmbientCaption: Boolean = true
 )
 
 class AppPreferences(private val context: Context) {
@@ -85,7 +85,7 @@ class AppPreferences(private val context: Context) {
                 sleepScheduleEnabled = prefs[PreferenceKeys.SLEEP_SCHEDULE_ENABLED] ?: true,
                 sleepStartHour = prefs[PreferenceKeys.SLEEP_START_HOUR] ?: 23,
                 sleepEndHour = prefs[PreferenceKeys.SLEEP_END_HOUR] ?: 8,
-                showAmbientCaption = prefs[PreferenceKeys.SHOW_AMBIENT_CAPTION] ?: false
+                showAmbientCaption = prefs[PreferenceKeys.SHOW_AMBIENT_CAPTION] ?: true
             )
         }
 
