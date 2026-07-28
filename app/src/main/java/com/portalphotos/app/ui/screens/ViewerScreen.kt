@@ -312,7 +312,8 @@ fun ViewerScreen(
                                 imageUrl = item.displayUrl,
                                 scalingMode = userSettings.scalingMode,
                                 transitionEffect = userSettings.transitionEffect,
-                                viewModel = viewModel
+                                viewModel = viewModel,
+                                isActivePage = isActivePage
                             )
                         }
                         is MediaItem.Video -> {

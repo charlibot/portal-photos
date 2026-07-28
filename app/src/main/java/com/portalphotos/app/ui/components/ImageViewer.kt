@@ -30,6 +30,7 @@ fun ImageViewer(
     scalingMode: ScalingMode,
     transitionEffect: TransitionEffect,
     viewModel: ViewerViewModel,
+    isActivePage: Boolean = true,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -80,40 +81,47 @@ fun ImageViewer(
         }
     }
 
-    // Ken Burns subtle zoom + gentle pan animation evaluated ONLY when enabled
-    val (kenBurnsScale, kenBurnsPanX, kenBurnsPanY) = if (transitionEffect == TransitionEffect.KEN_BURNS) {
-        val infiniteTransition = rememberInfiniteTransition(label = "KenBurns")
-        val scale by infiniteTransition.animateFloat(
-            initialValue = 1.0f,
-            targetValue = 1.06f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 12000, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "Scale"
-        )
-        val panX by infiniteTransition.animateFloat(
-            initialValue = -10f,
-            targetValue = 10f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 16000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "PanX"
-        )
-        val panY by infiniteTransition.animateFloat(
-            initialValue = -6f,
-            targetValue = 6f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 14000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "PanY"
-        )
-        Triple(scale, panX, panY)
-    } else {
-        Triple(1.0f, 0f, 0f)
+    // Ken Burns animation: Starts at exact 1.0x scale & 0px offset on slide view, smoothly expanding with zero jump
+    val kenBurnsAnim = remember(imageUrl) { Animatable(1.0f) }
+    val panXAnim = remember(imageUrl) { Animatable(0f) }
+    val panYAnim = remember(imageUrl) { Animatable(0f) }
+
+    LaunchedEffect(isActivePage, imageUrl, transitionEffect) {
+        if (isActivePage && transitionEffect == TransitionEffect.KEN_BURNS) {
+            kenBurnsAnim.snapTo(1.0f)
+            panXAnim.snapTo(0f)
+            panYAnim.snapTo(0f)
+
+            kotlinx.coroutines.coroutineScope {
+                launch {
+                    kenBurnsAnim.animateTo(
+                        targetValue = 1.06f,
+                        animationSpec = tween(durationMillis = 18000, easing = LinearEasing)
+                    )
+                }
+                launch {
+                    panXAnim.animateTo(
+                        targetValue = 12f,
+                        animationSpec = tween(durationMillis = 18000, easing = LinearEasing)
+                    )
+                }
+                launch {
+                    panYAnim.animateTo(
+                        targetValue = 8f,
+                        animationSpec = tween(durationMillis = 18000, easing = LinearEasing)
+                    )
+                }
+            }
+        } else {
+            kenBurnsAnim.snapTo(1.0f)
+            panXAnim.snapTo(0f)
+            panYAnim.snapTo(0f)
+        }
     }
+
+    val kenBurnsScale = kenBurnsAnim.value
+    val kenBurnsPanX = panXAnim.value
+    val kenBurnsPanY = panYAnim.value
 
     Box(
         modifier = modifier
