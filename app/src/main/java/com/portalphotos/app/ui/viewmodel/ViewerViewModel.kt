@@ -47,6 +47,9 @@ class ViewerViewModel(
     private val _isPlaying = MutableStateFlow(true)
     val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+    private val _isLiveMotionPlaying = MutableStateFlow(false)
+    val isLiveMotionPlaying: StateFlow<Boolean> = _isLiveMotionPlaying.asStateFlow()
+
     private val _uiMessage = MutableStateFlow<String?>(null)
     val uiMessage: StateFlow<String?> = _uiMessage.asStateFlow()
 
@@ -99,6 +102,10 @@ class ViewerViewModel(
 
     fun resumePlayback() {
         _isPlaying.value = true
+    }
+
+    fun setLiveMotionPlaying(playing: Boolean) {
+        _isLiveMotionPlaying.value = playing
     }
 
     fun addAlbumUrl(url: String) {

@@ -15,7 +15,7 @@ enum class SoundMode { MUTED, UNMUTED, REMEMBER_LAST }
 enum class TransitionEffect { CROSSFADE, SLIDE, KEN_BURNS }
 enum class ClockOverlayMode { HIDDEN, TOP_RIGHT, BOTTOM_LEFT, BAR }
 enum class VideoCompletionMode { ADVANCE_ON_FINISH, CAP_30S, CAP_60S }
-enum class LivePhotoBehavior { STILL_PHOTO_WITH_MOTION_TOGGLE, PLAY_MOTION_ONCE, STILL_PHOTO_ONLY, PLAY_AS_VIDEO }
+enum class LivePhotoBehavior { STILL_PHOTO_WITH_MOTION_TOGGLE, PLAY_MOTION_ONCE, STILL_PHOTO_ONLY }
 
 data class UserSettings(
     val scalingMode: ScalingMode = ScalingMode.FILL_SMART_CROP,

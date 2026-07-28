@@ -439,20 +439,6 @@ fun SettingsSheet(
                                     label = { Text("Still Photo + [LIVE] Toggle") }
                                 )
                                 FilterChip(
-                                    selected = userSettings.livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_ONLY,
-                                    onClick = {
-                                        scope.launch {
-                                            viewModel.appPreferences.updateLivePhotoBehavior(LivePhotoBehavior.STILL_PHOTO_ONLY)
-                                        }
-                                    },
-                                    label = { Text("Still Only") }
-                                )
-                            }
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                FilterChip(
                                     selected = userSettings.livePhotoBehavior == LivePhotoBehavior.PLAY_MOTION_ONCE,
                                     onClick = {
                                         scope.launch {
@@ -462,13 +448,13 @@ fun SettingsSheet(
                                     label = { Text("Play Motion then Hold") }
                                 )
                                 FilterChip(
-                                    selected = userSettings.livePhotoBehavior == LivePhotoBehavior.PLAY_AS_VIDEO,
+                                    selected = userSettings.livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_ONLY,
                                     onClick = {
                                         scope.launch {
-                                            viewModel.appPreferences.updateLivePhotoBehavior(LivePhotoBehavior.PLAY_AS_VIDEO)
+                                            viewModel.appPreferences.updateLivePhotoBehavior(LivePhotoBehavior.STILL_PHOTO_ONLY)
                                         }
                                     },
-                                    label = { Text("Play on Loop") }
+                                    label = { Text("Still Only") }
                                 )
                             }
                         }

@@ -38,6 +38,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.portalphotos.app.data.metadata.MediaMetadataExtractor
 import com.portalphotos.app.data.model.MediaItem
+import com.portalphotos.app.data.prefs.LivePhotoBehavior
 import com.portalphotos.app.ui.components.ClockOverlay
 import com.portalphotos.app.ui.components.ImageViewer
 import com.portalphotos.app.ui.components.MetadataSheet
@@ -166,14 +167,19 @@ fun ViewerScreen(
         }
     }
 
-    // Auto-advance slideshow timer loop EXCLUSIVELY for still photo slides when not sleeping
-    LaunchedEffect(isPlaying, isSleepingNow, pagerState.settledPage, mediaItems, userSettings.slideshowTimerSeconds) {
-        if (isPlaying && !isSleepingNow && mediaItems.isNotEmpty() && userSettings.slideshowTimerSeconds > 0) {
+    val isLiveMotionPlaying by viewModel.isLiveMotionPlaying.collectAsState()
+
+    // Auto-advance slideshow timer loop for photos and still Live Photos when not sleeping and motion is not playing
+    LaunchedEffect(isPlaying, isSleepingNow, isLiveMotionPlaying, pagerState.settledPage, mediaItems, userSettings.slideshowTimerSeconds, userSettings.livePhotoBehavior) {
+        if (isPlaying && !isSleepingNow && !isLiveMotionPlaying && mediaItems.isNotEmpty() && userSettings.slideshowTimerSeconds > 0) {
             val actualIndex = pagerState.settledPage % mediaItems.size
             val currentItem = mediaItems.getOrNull(actualIndex)
-            if (currentItem is MediaItem.Photo) {
+            val isStillOrLivePhotoToggle = currentItem is MediaItem.Photo ||
+                (currentItem is MediaItem.Video && currentItem.isLivePhoto && userSettings.livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE)
+
+            if (isStillOrLivePhotoToggle) {
                 delay(userSettings.slideshowTimerSeconds * 1000L)
-                if (isPlaying && !isSleepingNow && mediaItems.isNotEmpty()) {
+                if (isPlaying && !isSleepingNow && !isLiveMotionPlaying && mediaItems.isNotEmpty()) {
                     val nextPage = pagerState.settledPage + 1
                     pagerState.animateScrollToPage(
                         page = nextPage,
