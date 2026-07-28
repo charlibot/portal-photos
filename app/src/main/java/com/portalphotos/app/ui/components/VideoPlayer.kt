@@ -13,6 +13,8 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.zIndex
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MotionPhotosAuto
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -37,6 +39,7 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import coil.Coil
+import coil.compose.rememberAsyncImagePainter
 import coil.request.ImageRequest
 import com.portalphotos.app.data.crop.SmartCropDetector
 import com.portalphotos.app.data.prefs.LivePhotoBehavior
@@ -71,52 +74,52 @@ fun VideoPlayer(
     }
     var isLivePhotoFinished by remember(streamUrl) { mutableStateOf(initialIsFinished) }
     var isManualMotionActive by remember(streamUrl) { mutableStateOf(false) }
+    var isManualVideoPlaying by remember(streamUrl) { mutableStateOf(false) }
     var livePhotoLoopCount by remember(streamUrl) { mutableStateOf(0) }
     var loadedBitmap by remember(imageUrl) { mutableStateOf<Bitmap?>(null) }
+    var activeVideoWidth by remember(streamUrl) { mutableStateOf(0) }
+    var activeVideoHeight by remember(streamUrl) { mutableStateOf(0) }
 
-    // Auto-detect Portrait orientation: If portrait & Smart Crop enabled, automatically use FIT mode!
-    val effectiveScalingMode = remember(userSettings.scalingMode, loadedBitmap) {
+    // Explicitly load cached bitmap in background to extract dimensions reliably
+    LaunchedEffect(imageUrl) {
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val request = ImageRequest.Builder(context)
+                    .data(imageUrl)
+                    .allowHardware(false)
+                    .build()
+                val result = Coil.imageLoader(context).execute(request)
+                val drawable = result.drawable
+                if (drawable is android.graphics.drawable.BitmapDrawable) {
+                    loadedBitmap = drawable.bitmap
+                }
+            } catch (e: Exception) {
+                // Ignore load error
+            }
+        }
+    }
+
+    // Auto-detect Portrait orientation for both photos and motion video tracks
+    val isPortraitMedia = remember(loadedBitmap, activeVideoWidth, activeVideoHeight) {
         val bmp = loadedBitmap
-        if (bmp != null && bmp.height > bmp.width && userSettings.scalingMode == ScalingMode.FILL_SMART_CROP) {
+        (bmp != null && bmp.height > bmp.width) || (activeVideoHeight > activeVideoWidth && activeVideoWidth > 0)
+    }
+
+    val effectiveScalingMode = remember(userSettings.scalingMode, isPortraitMedia) {
+        if (isPortraitMedia && userSettings.scalingMode == ScalingMode.FILL_SMART_CROP) {
             ScalingMode.FIT
         } else {
             userSettings.scalingMode
         }
     }
 
-    // Synchronize initial smart crop focal point for 1:1 alignment matching
-    val initialFocal = remember(imageUrl) {
-        viewModel.cacheManager.focalPointCache[imageUrl] ?: Offset(0.5f, 0.5f)
-    }
-    var focalPoint by remember(imageUrl) { mutableStateOf(initialFocal) }
-
     val animatedFocalPoint by animateOffsetAsState(
-        targetValue = focalPoint,
+        targetValue = remember(imageUrl) {
+            viewModel.cacheManager.focalPointCache[imageUrl] ?: Offset(0.5f, 0.5f)
+        },
         animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing),
-        label = "VideoFocalPointPan"
+        label = "FocalPointPanVideo"
     )
-
-    // Pre-download high-res photo in background
-    DisposableEffect(imageUrl) {
-        val request = ImageRequest.Builder(context)
-            .data(imageUrl)
-            .allowHardware(false)
-            .target { drawable ->
-                if (drawable is android.graphics.drawable.BitmapDrawable) {
-                    loadedBitmap = drawable.bitmap
-                }
-            }
-            .build()
-        Coil.imageLoader(context).enqueue(request)
-        onDispose {}
-    }
-
-    LaunchedEffect(loadedBitmap, effectiveScalingMode) {
-        val bmp = loadedBitmap
-        if (bmp != null && effectiveScalingMode == ScalingMode.FILL_SMART_CROP) {
-            focalPoint = viewModel.getFocalPoint(imageUrl, bmp)
-        }
-    }
 
     val exoPlayer = remember(streamUrl) {
         val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
@@ -135,8 +138,6 @@ fun VideoPlayer(
                 repeatMode = Player.REPEAT_MODE_OFF
             }
     }
-
-
 
     // Handle Still Photo Only mode EXCLUSIVELY for Live Photos
     if (isLivePhotoItem && livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_ONLY) {
@@ -166,7 +167,7 @@ fun VideoPlayer(
             LivePhotoBehavior.STILL_PHOTO_ONLY -> false
         }
     } else {
-        true // Real standalone video -> Always show video surface
+        autoplay || isManualVideoPlaying // Standalone video appears ONLY if autoplay is ON OR manually triggered!
     }
 
     // Effect 1: Manual LIVE motion control — triggers ONLY when isManualMotionActive changes value
@@ -193,8 +194,8 @@ fun VideoPlayer(
     }
 
     // Effect 2: Normal page/play state control — SKIPS entirely when manual motion is active
-    LaunchedEffect(isActivePage, isPlaying, autoplay) {
-        Log.d("PortalPhotos", "MainEffect LaunchedEffect isActivePage=$isActivePage | isPlaying=$isPlaying | isManualMotionActive=$isManualMotionActive | isLivePhoto=$isLivePhotoItem")
+    LaunchedEffect(isActivePage, isPlaying, autoplay, isManualVideoPlaying) {
+        Log.d("PortalPhotos", "MainEffect LaunchedEffect isActivePage=$isActivePage | isPlaying=$isPlaying | isManualMotionActive=$isManualMotionActive | isLivePhoto=$isLivePhotoItem | autoplay=$autoplay")
         if (isManualMotionActive) {
             Log.d("PortalPhotos", "MainEffect SKIPPED because manual motion is active")
             return@LaunchedEffect
@@ -207,11 +208,15 @@ fun VideoPlayer(
                 isManualMotionActive = false
                 viewModel.setLiveMotionPlaying(false)
             }
+            if (isManualVideoPlaying) {
+                isManualVideoPlaying = false
+                viewModel.setLiveMotionPlaying(false)
+            }
             return@LaunchedEffect
         }
 
         if (!isLivePhotoItem) {
-            if (isPlaying) {
+            if ((autoplay || isManualVideoPlaying) && isPlaying) {
                 exoPlayer.playWhenReady = true
                 exoPlayer.play()
             } else {
@@ -302,6 +307,10 @@ fun VideoPlayer(
 
             override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
                 Log.d("PortalPhotos", "[EXO] onVideoSizeChanged ${videoSize.width}x${videoSize.height}")
+                if (videoSize.width > 0 && videoSize.height > 0) {
+                    activeVideoWidth = videoSize.width
+                    activeVideoHeight = videoSize.height
+                }
             }
 
             override fun onPlayerError(error: PlaybackException) {
@@ -396,6 +405,44 @@ fun VideoPlayer(
                     )
                     Text(
                         text = if (isManualMotionActive) "MOTION ON" else "LIVE",
+                        color = Color.White,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
+
+        // Standalone Video Manual Play Toggle Pill (Top-Left) when Autoplay is OFF
+        if (!isLivePhotoItem && !userSettings.autoplayVideos) {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(24.dp)
+                    .zIndex(10f)
+                    .clip(RoundedCornerShape(24.dp))
+                    .background(
+                        if (isManualVideoPlaying) MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+                        else Color.Black.copy(alpha = 0.6f)
+                    )
+                    .clickable {
+                        isManualVideoPlaying = !isManualVideoPlaying
+                        viewModel.setLiveMotionPlaying(isManualVideoPlaying)
+                    }
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = if (isManualVideoPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                        contentDescription = "Play Video",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = if (isManualVideoPlaying) "PLAYING" else "PLAY VIDEO",
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold

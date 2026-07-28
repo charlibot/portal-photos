@@ -169,15 +169,20 @@ fun ViewerScreen(
 
     val isLiveMotionPlaying by viewModel.isLiveMotionPlaying.collectAsState()
 
-    // Auto-advance slideshow timer loop for photos and still Live Photos when not sleeping and motion is not playing
-    LaunchedEffect(isPlaying, isSleepingNow, isLiveMotionPlaying, pagerState.settledPage, mediaItems, userSettings.slideshowTimerSeconds, userSettings.livePhotoBehavior) {
+    // Auto-advance slideshow timer loop for photos, still Live Photos, and non-playing videos when not sleeping and motion is not playing
+    LaunchedEffect(isPlaying, isSleepingNow, isLiveMotionPlaying, pagerState.settledPage, mediaItems, userSettings.slideshowTimerSeconds, userSettings.livePhotoBehavior, userSettings.autoplayVideos) {
         if (isPlaying && !isSleepingNow && !isLiveMotionPlaying && mediaItems.isNotEmpty() && userSettings.slideshowTimerSeconds > 0) {
             val actualIndex = pagerState.settledPage % mediaItems.size
             val currentItem = mediaItems.getOrNull(actualIndex)
-            val isStillOrLivePhotoToggle = currentItem is MediaItem.Photo ||
-                (currentItem is MediaItem.Video && currentItem.isLivePhoto && userSettings.livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE)
 
-            if (isStillOrLivePhotoToggle) {
+            val shouldAutoAdvanceTimer = when {
+                currentItem is MediaItem.Photo -> true
+                currentItem is MediaItem.Video && currentItem.isLivePhoto -> userSettings.livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE
+                currentItem is MediaItem.Video && !currentItem.isLivePhoto -> !userSettings.autoplayVideos && !isLiveMotionPlaying
+                else -> false
+            }
+
+            if (shouldAutoAdvanceTimer) {
                 delay(userSettings.slideshowTimerSeconds * 1000L)
                 if (isPlaying && !isSleepingNow && !isLiveMotionPlaying && mediaItems.isNotEmpty()) {
                     val nextPage = pagerState.settledPage + 1
