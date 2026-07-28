@@ -22,6 +22,7 @@ import com.portalphotos.app.data.crop.SmartCropDetector
 import com.portalphotos.app.data.prefs.ScalingMode
 import com.portalphotos.app.data.prefs.TransitionEffect
 import com.portalphotos.app.ui.viewmodel.ViewerViewModel
+import kotlinx.coroutines.launch
 
 @Composable
 fun ImageViewer(
@@ -84,10 +85,10 @@ fun ImageViewer(
         val infiniteTransition = rememberInfiniteTransition(label = "KenBurns")
         val scale by infiniteTransition.animateFloat(
             initialValue = 1.0f,
-            targetValue = 1.08f,
+            targetValue = 1.06f,
             animationSpec = infiniteRepeatable(
                 animation = tween(durationMillis = 12000, easing = LinearEasing),
-                repeatMode = RepeatMode.Reverse
+                repeatMode = RepeatMode.Restart
             ),
             label = "Scale"
         )
@@ -95,7 +96,7 @@ fun ImageViewer(
             initialValue = -10f,
             targetValue = 10f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 14000, easing = LinearEasing),
+                animation = tween(durationMillis = 16000, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "PanX"
@@ -104,7 +105,7 @@ fun ImageViewer(
             initialValue = -6f,
             targetValue = 6f,
             animationSpec = infiniteRepeatable(
-                animation = tween(durationMillis = 12000, easing = LinearEasing),
+                animation = tween(durationMillis = 14000, easing = LinearEasing),
                 repeatMode = RepeatMode.Reverse
             ),
             label = "PanY"
@@ -121,7 +122,7 @@ fun ImageViewer(
     ) {
         when (effectiveScalingMode) {
             ScalingMode.FIT -> {
-                // Background: Blurred full-bleed photo
+                // Background: 100% Static Ambient Blurred Side Bars
                 Image(
                     painter = painter,
                     contentDescription = null,
@@ -131,20 +132,13 @@ fun ImageViewer(
                         .blur(30.dp)
                         .graphicsLayer(alpha = 0.6f)
                 )
-                // Foreground: 100% complete photo without cropping
+                // Foreground: Crisp, perfectly stable uncropped portrait photo (100% static, zero box distortion)
                 Image(
                     painter = painter,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     alignment = Alignment.Center,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer(
-                            scaleX = kenBurnsScale,
-                            scaleY = kenBurnsScale,
-                            translationX = kenBurnsPanX,
-                            translationY = kenBurnsPanY
-                        )
+                    modifier = Modifier.fillMaxSize()
                 )
             }
             ScalingMode.FILL_CENTER -> {
