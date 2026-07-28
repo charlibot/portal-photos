@@ -11,6 +11,9 @@ import com.portalphotos.app.data.db.PortalPhotosDatabase
 import com.portalphotos.app.data.prefs.AppPreferences
 import com.portalphotos.app.data.repository.AlbumRepository
 import com.portalphotos.app.data.server.LocalWebServer
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 class PortalPhotosApplication : Application(), ImageLoaderFactory {
 
@@ -35,6 +38,15 @@ class PortalPhotosApplication : Application(), ImageLoaderFactory {
         appPreferences = AppPreferences(this)
         smartCropDetector = SmartCropDetector()
         localWebServer = LocalWebServer(repository)
+
+        // Seed default shared album URL if database is empty
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                repository.addAlbumUrlAsync("https://photos.app.goo.gl/AwVsXmT9iwdmjKAa7")
+            } catch (e: Exception) {
+                // Ignore DB initialization race condition
+            }
+        }
     }
 
     override fun newImageLoader(): ImageLoader {

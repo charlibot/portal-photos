@@ -187,31 +187,37 @@ class SharedAlbumParser(
     }
 
     private fun extractTimestampForUrl(html: String, baseUrl: String): Long? {
-        val idx = html.lastIndexOf(baseUrl)
-        if (idx != -1) {
+        val pattern = Pattern.compile(Pattern.quote(baseUrl))
+        val matcher = pattern.matcher(html)
+        val candidateMs = mutableListOf<Long>()
+
+        while (matcher.find()) {
+            val idx = matcher.start()
             val start = (idx - 100).coerceAtLeast(0)
             val end = (idx + 1800).coerceAtMost(html.length)
             val chunk = html.substring(start, end)
 
             // Try 13-digit epoch ms (e.g. 1784707094790)
             val msMatcher = Pattern.compile("""\b(1[4-8]\d{11})\b""").matcher(chunk)
-            if (msMatcher.find()) {
+            while (msMatcher.find()) {
                 val ms = msMatcher.group(1)?.toLongOrNull()
                 if (ms != null && ms in 1000000000000L..2000000000000L) {
-                    return ms
+                    candidateMs.add(ms)
                 }
             }
 
             // Try 10-digit epoch seconds (e.g. 1784707094)
             val secMatcher = Pattern.compile("""\b(1[4-8]\d{8})\b""").matcher(chunk)
-            if (secMatcher.find()) {
+            while (secMatcher.find()) {
                 val sec = secMatcher.group(1)?.toLongOrNull()
                 if (sec != null && sec in 1000000000L..2000000000L) {
-                    return sec * 1000L
+                    candidateMs.add(sec * 1000L)
                 }
             }
         }
-        return null
+
+        // Return the earliest valid timestamp (the photo's original EXIF capture timestamp)
+        return candidateMs.minOrNull()
     }
 
     private fun checkHighQualityVideoInfo(baseUrl: String): VideoStreamInfo {
