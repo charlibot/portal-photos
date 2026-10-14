@@ -56,6 +56,13 @@ class ViewerViewModel(
     private val _localWebUrl = MutableStateFlow<String?>(null)
     val localWebUrl: StateFlow<String?> = _localWebUrl.asStateFlow()
 
+    private val _isScreenDimmed = MutableStateFlow(false)
+    val isScreenDimmed: StateFlow<Boolean> = _isScreenDimmed.asStateFlow()
+
+    fun setScreenDimmed(dimmed: Boolean) {
+        _isScreenDimmed.value = dimmed
+    }
+
     init {
         // Start Local Web Server for desktop/phone album URL management
         try {

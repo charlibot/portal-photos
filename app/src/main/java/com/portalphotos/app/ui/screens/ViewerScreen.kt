@@ -50,7 +50,7 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Calendar
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, coil.annotation.ExperimentalCoilApi::class)
 @Composable
 fun ViewerScreen(
     viewModel: ViewerViewModel,
@@ -96,6 +96,11 @@ fun ViewerScreen(
 
     val isSleepingNow = userSettings.sleepScheduleEnabled && isSleepHourActive && !isTemporarilyWoken
 
+    // Notify ViewModel and Activity to adjust physical backlight brightness for sleep mode
+    LaunchedEffect(isSleepingNow) {
+        viewModel.setScreenDimmed(isSleepingNow)
+    }
+
     // Auto-re-enter sleep mode after 30 seconds of temp wake
     LaunchedEffect(isTemporarilyWoken) {
         if (isTemporarilyWoken) {
@@ -117,7 +122,7 @@ fun ViewerScreen(
         pageCount = { virtualPageCount }
     )
 
-    // Compute Metadata for currently active media item safely
+    // Compute Metadata for currently active media item safely without blocking the UI looper
     val activeItem = remember(pagerState.settledPage, mediaItems) {
         if (mediaItems.isNotEmpty()) {
             val actualIndex = pagerState.settledPage % mediaItems.size
@@ -125,29 +130,39 @@ fun ViewerScreen(
         } else null
     }
 
-    val activeMetadata = remember(activeItem) {
+    var activeMetadata by remember { mutableStateOf<com.portalphotos.app.data.metadata.FormattedMetadata?>(null) }
+
+    LaunchedEffect(activeItem) {
         val item = activeItem
         if (item != null) {
-            val cachedFile: File? = try {
-                context.cacheDir.resolve("image_cache").listFiles()?.firstOrNull()
-            } catch (e: Exception) {
-                null
-            }
+            val metadata = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                // Look up exact cached file from Coil disk cache if present without scanning disk
+                val cachedFile: File? = try {
+                    val diskCache = coil.Coil.imageLoader(context).diskCache
+                    val snapshot = diskCache?.openSnapshot(item.displayUrl)
+                    snapshot?.use { it.data.toFile() }
+                } catch (e: Exception) {
+                    null
+                }
 
-            val (w, h) = when (item) {
-                is MediaItem.Photo -> Pair(item.width, item.height)
-                is MediaItem.Video -> Pair(item.width, item.height)
-            }
+                val (w, h) = when (item) {
+                    is MediaItem.Photo -> Pair(item.width, item.height)
+                    is MediaItem.Video -> Pair(item.width, item.height)
+                }
 
-            MediaMetadataExtractor.extractMetadata(
-                context = context,
-                imageFile = cachedFile,
-                timestampMs = item.timestamp,
-                albumTitle = item.albumTitle,
-                width = w,
-                height = h
-            )
-        } else null
+                MediaMetadataExtractor.extractMetadata(
+                    context = context,
+                    imageFile = cachedFile,
+                    timestampMs = item.timestamp,
+                    albumTitle = item.albumTitle,
+                    width = w,
+                    height = h
+                )
+            }
+            activeMetadata = metadata
+        } else {
+            activeMetadata = null
+        }
     }
 
     // Show Toast messages from ViewModel
@@ -320,6 +335,8 @@ fun ViewerScreen(
                             VideoPlayer(
                                 imageUrl = item.displayUrl,
                                 streamUrl = item.streamUrl,
+                                itemWidth = item.width,
+                                itemHeight = item.height,
                                 isLivePhotoItem = item.isLivePhoto,
                                 isActivePage = isActivePage && !isSleepingNow,
                                 autoplay = userSettings.autoplayVideos,
@@ -604,9 +621,10 @@ fun ViewerScreen(
         }
 
         // Photo Metadata Information Sheet Modal (ℹ️)
-        if (showMetadataSheet && activeMetadata != null) {
+        val currentMetadata = activeMetadata
+        if (showMetadataSheet && currentMetadata != null) {
             MetadataSheet(
-                metadata = activeMetadata,
+                metadata = currentMetadata,
                 onDismiss = { showMetadataSheet = false }
             )
         }

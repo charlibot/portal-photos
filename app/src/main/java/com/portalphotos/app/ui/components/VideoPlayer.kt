@@ -60,6 +60,8 @@ fun VideoPlayer(
     onToggleMute: () -> Unit,
     onVideoCompleted: () -> Unit,
     viewModel: ViewerViewModel,
+    itemWidth: Int = 0,
+    itemHeight: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -76,33 +78,12 @@ fun VideoPlayer(
     var isManualMotionActive by remember(streamUrl) { mutableStateOf(false) }
     var isManualVideoPlaying by remember(streamUrl) { mutableStateOf(false) }
     var livePhotoLoopCount by remember(streamUrl) { mutableStateOf(0) }
-    var loadedBitmap by remember(imageUrl) { mutableStateOf<Bitmap?>(null) }
     var activeVideoWidth by remember(streamUrl) { mutableStateOf(0) }
     var activeVideoHeight by remember(streamUrl) { mutableStateOf(0) }
 
-    // Explicitly load cached bitmap in background to extract dimensions reliably
-    LaunchedEffect(imageUrl) {
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                val request = ImageRequest.Builder(context)
-                    .data(imageUrl)
-                    .allowHardware(false)
-                    .build()
-                val result = Coil.imageLoader(context).execute(request)
-                val drawable = result.drawable
-                if (drawable is android.graphics.drawable.BitmapDrawable) {
-                    loadedBitmap = drawable.bitmap
-                }
-            } catch (e: Exception) {
-                // Ignore load error
-            }
-        }
-    }
-
-    // Auto-detect Portrait orientation for both photos and motion video tracks
-    val isPortraitMedia = remember(loadedBitmap, activeVideoWidth, activeVideoHeight) {
-        val bmp = loadedBitmap
-        (bmp != null && bmp.height > bmp.width) || (activeVideoHeight > activeVideoWidth && activeVideoWidth > 0)
+    // Auto-detect Portrait orientation from known item dimensions and active video track
+    val isPortraitMedia = remember(itemWidth, itemHeight, activeVideoWidth, activeVideoHeight) {
+        (itemWidth > 0 && itemHeight > itemWidth) || (activeVideoWidth > 0 && activeVideoHeight > activeVideoWidth)
     }
 
     val effectiveScalingMode = remember(userSettings.scalingMode, isPortraitMedia) {
