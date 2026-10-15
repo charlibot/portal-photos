@@ -82,6 +82,10 @@ class CacheManager(private val context: Context) {
     }
 
     private fun preloadImage(url: String) {
+        if (focalPointCache.containsKey(url)) {
+            return
+        }
+
         val request = ImageRequest.Builder(context)
             .data(url)
             .allowHardware(false) // Allow bitmap extraction for background Smart Crop calculation

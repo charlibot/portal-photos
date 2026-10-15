@@ -34,7 +34,8 @@ fun ImageViewer(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var loadedBitmap by remember(imageUrl) { mutableStateOf<Bitmap?>(null) }
+    val scope = rememberCoroutineScope()
+    var isPortraitMedia by remember(imageUrl) { mutableStateOf(false) }
 
     // Initialize focalPoint directly from cache on Frame 0 for 0ms instant alignment
     val initialFocal = remember(imageUrl) {
@@ -43,9 +44,8 @@ fun ImageViewer(
     var focalPoint by remember(imageUrl) { mutableStateOf(initialFocal) }
 
     // Auto-detect Portrait orientation: If portrait & Smart Crop enabled, automatically use FIT mode!
-    val effectiveScalingMode = remember(scalingMode, loadedBitmap) {
-        val bmp = loadedBitmap
-        if (bmp != null && bmp.height > bmp.width && scalingMode == ScalingMode.FILL_SMART_CROP) {
+    val effectiveScalingMode = remember(scalingMode, isPortraitMedia) {
+        if (isPortraitMedia && scalingMode == ScalingMode.FILL_SMART_CROP) {
             ScalingMode.FIT
         } else {
             scalingMode
@@ -62,24 +62,25 @@ fun ImageViewer(
     val painter = rememberAsyncImagePainter(
         model = ImageRequest.Builder(context)
             .data(imageUrl)
-            .allowHardware(false) // Required to extract bitmap for ML Kit Face/Object detection & orientation check
+            .allowHardware(false) // Required for ML Kit Face/Object detection
             .crossfade(true)
             .build(),
         onSuccess = { state ->
             val drawable = state.result.drawable
-            if (drawable is android.graphics.drawable.BitmapDrawable) {
-                loadedBitmap = drawable.bitmap
+            val w = drawable.intrinsicWidth
+            val h = drawable.intrinsicHeight
+            if (w > 0 && h > 0) {
+                isPortraitMedia = (h > w)
+            }
+            if (drawable is android.graphics.drawable.BitmapDrawable && !viewModel.cacheManager.focalPointCache.containsKey(imageUrl)) {
+                val bitmap = drawable.bitmap
+                scope.launch(kotlinx.coroutines.Dispatchers.Default) {
+                    val focal = viewModel.getFocalPoint(imageUrl, bitmap)
+                    focalPoint = focal
+                }
             }
         }
     )
-
-    // Calculate smart crop focal point when bitmap loads if not already in cache
-    LaunchedEffect(loadedBitmap, effectiveScalingMode) {
-        val bitmap = loadedBitmap
-        if (bitmap != null && effectiveScalingMode == ScalingMode.FILL_SMART_CROP) {
-            focalPoint = viewModel.getFocalPoint(imageUrl, bitmap)
-        }
-    }
 
     // Ken Burns animation: Starts at exact 1.0x scale & 0px offset on slide view, smoothly expanding with zero jump
     val kenBurnsAnim = remember(imageUrl) { Animatable(1.0f) }
