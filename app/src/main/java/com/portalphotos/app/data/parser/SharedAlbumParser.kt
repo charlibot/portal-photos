@@ -154,7 +154,16 @@ class SharedAlbumParser(
         }
 
         val urlList = urlSet.toList()
-        val videoCheckDeferreds = urlList.map { baseUrl ->
+        val itemsWithTimestamp = urlList.mapNotNull { baseUrl ->
+            val timestamp = extractTimestampForUrl(html, baseUrl)
+            if (timestamp != null && timestamp > 0L) {
+                baseUrl to timestamp
+            } else {
+                null
+            }
+        }
+
+        val videoCheckDeferreds = itemsWithTimestamp.map { (baseUrl, _) ->
             async(Dispatchers.IO) {
                 checkHighQualityVideoInfo(baseUrl)
             }
@@ -163,13 +172,12 @@ class SharedAlbumParser(
 
         val items = mutableListOf<MediaItemEntity>()
 
-        for (index in urlList.indices) {
-            val baseUrl = urlList[index]
+        for (index in itemsWithTimestamp.indices) {
+            val (baseUrl, itemTimestamp) = itemsWithTimestamp[index]
             val info = videoInfos[index]
 
             val highResPhotoUrl = "$baseUrl=w1920-h1080"
             val itemId = md5("$albumId-$baseUrl")
-            val itemTimestamp = extractTimestampForUrl(html, baseUrl) ?: 0L
 
             items.add(
                 MediaItemEntity(
@@ -195,22 +203,24 @@ class SharedAlbumParser(
         val pattern = Pattern.compile(Pattern.quote(baseUrl))
         val matcher = pattern.matcher(html)
         val candidateMs = mutableListOf<Long>()
+        val isFullPage = html.contains("<head")
 
         while (matcher.find()) {
             val idx = matcher.start()
-            // Focus on occurrences inside the main JSON data block (idx > 50000)
-            if (idx > 50000) {
+            // In a full HTML page, skip <head> metadata (og:image) by focusing on main JSON (idx > 50000).
+            // In batch/paginated JSON responses without <head>, inspect from the start.
+            if (!isFullPage || idx > 50000) {
                 val start = (idx - 200).coerceAtLeast(0)
                 val end = (idx + 1500).coerceAtMost(html.length)
                 val chunk = html.substring(start, end)
 
-                // Try 13-digit epoch ms (e.g. 1784707094790)
-                val msMatcher = Pattern.compile("""\b(1[4-8]\d{11})\b""").matcher(chunk)
+                // Try epoch ms (12 to 13 digits, covers 1973 to 2049)
+                val msMatcher = Pattern.compile("""\b([1-9]\d{11,12})\b""").matcher(chunk)
                 while (msMatcher.find()) {
                     val msStr = msMatcher.group(1)
                     val ms = msStr?.toLongOrNull()
                     // Filter out 1785... (album sync/edit dates) to target real photo EXIF capture timestamps
-                    if (ms != null && ms in 1000000000000L..2000000000000L && !msStr.startsWith("1785")) {
+                    if (ms != null && ms in 100000000000L..2500000000000L && !msStr.startsWith("1785")) {
                         candidateMs.add(ms)
                     }
                 }

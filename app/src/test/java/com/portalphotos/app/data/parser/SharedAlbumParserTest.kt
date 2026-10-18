@@ -61,7 +61,7 @@ class SharedAlbumParserTest {
                     <img src="https://lh3.googleusercontent.com/ogw" />
                     <img src="https://lh3.googleusercontent.com/ogw=s64-c" />
                     <img src="https://lh3.googleusercontent.com/a/ACg8ocLshortAvatarUrl" />
-                    <img src="https://lh3.googleusercontent.com/pw/AP1GczMx7KiA6K1ttELC52B4mBgzWIv9sJfc-sCQB7h2Fg6lV2g4lG-vuLa8KXwdyXT-XlxoACQ4GlRlHHrj64YOG796JYTh2bvtPZAhuDzOY6T53OU_jHtu" />
+                    [["photo1", ["https://lh3.googleusercontent.com/pw/AP1GczMx7KiA6K1ttELC52B4mBgzWIv9sJfc-sCQB7h2Fg6lV2g4lG-vuLa8KXwdyXT-XlxoACQ4GlRlHHrj64YOG796JYTh2bvtPZAhuDzOY6T53OU_jHtu", 1920, 1080], 1486241400000]]
                 </body>
             </html>
         """.trimIndent()
@@ -69,5 +69,6 @@ class SharedAlbumParserTest {
         val items = parser.parseMediaItemsFromHtml(mockHtml, "test-album-id", "Test Album")
         org.junit.Assert.assertEquals(1, items.size)
         org.junit.Assert.assertTrue(items[0].mediaUrl.startsWith("https://lh3.googleusercontent.com/pw/AP1GczMx7KiA6K1ttELC52B4mBgzWIv9sJfc"))
+        org.junit.Assert.assertEquals(1486241400000L, items[0].timestamp)
     }
 }
