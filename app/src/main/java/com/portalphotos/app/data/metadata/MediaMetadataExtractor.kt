@@ -13,8 +13,8 @@ import java.util.Locale
 import java.util.TimeZone
 
 data class FormattedMetadata(
-    val formattedDate: String,
-    val relativeAge: String,
+    val formattedDate: String? = null,
+    val relativeAge: String? = null,
     val locationName: String? = null,
     val cameraModel: String? = null,
     val cameraSettings: String? = null,
@@ -53,11 +53,11 @@ object MediaMetadataExtractor {
         // 1. Determine TimeZone (From EXIF Offset / GPS or Fallback)
         val photoTimeZone = determineTimeZone(exif)
 
-        // 2. Format Date: "Morning of 14 July 2024"
-        val formattedDate = formatTimeOfDayDate(finalTimestamp, photoTimeZone)
+        // 2. Format Date: "Morning of 14 July 2024" (only if timestamp is valid)
+        val formattedDate = if (finalTimestamp > 0L) formatTimeOfDayDate(finalTimestamp, photoTimeZone) else null
 
-        // 3. Format Relative Age: "2 years ago"
-        val relativeAge = formatRelativeAge(finalTimestamp)
+        // 3. Format Relative Age: "2 years ago" (only if timestamp is valid)
+        val relativeAge = if (finalTimestamp > 0L) formatRelativeAge(finalTimestamp) else null
 
         // 4. Reverse Geocode GPS Location ONLY if real GPS EXIF coordinates exist
         val locationName = extractLocationName(context, exif)
@@ -125,9 +125,10 @@ object MediaMetadataExtractor {
         return if (hoursOffset >= 0) "GMT+$hoursOffset" else "GMT$hoursOffset"
     }
 
-    private fun formatTimeOfDayDate(timestampMs: Long, timeZone: TimeZone): String {
+    private fun formatTimeOfDayDate(timestampMs: Long, timeZone: TimeZone): String? {
+        if (timestampMs <= 0L) return null
         val cal = Calendar.getInstance(timeZone).apply {
-            timeInMillis = if (timestampMs > 0) timestampMs else System.currentTimeMillis()
+            timeInMillis = timestampMs
         }
 
         val hour = cal.get(Calendar.HOUR_OF_DAY)
@@ -147,10 +148,11 @@ object MediaMetadataExtractor {
         return "$timeOfDay of $day $monthYear"
     }
 
-    private fun formatRelativeAge(timestampMs: Long): String {
-        if (timestampMs <= 0) return "Recent"
+    private fun formatRelativeAge(timestampMs: Long): String? {
+        if (timestampMs <= 0L) return null
         val now = System.currentTimeMillis()
         val diffMs = now - timestampMs
+        if (diffMs < 0) return null
 
         val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
         val diffYears = (diffDays / 365.25).toInt()
@@ -162,7 +164,7 @@ object MediaMetadataExtractor {
             diffDays < 365 -> "${diffDays / 30} months ago"
             diffYears == 1 -> "1 year ago"
             diffYears > 1 -> "$diffYears years ago"
-            else -> "Recent"
+            else -> null
         }
     }
 

@@ -169,7 +169,7 @@ class SharedAlbumParser(
 
             val highResPhotoUrl = "$baseUrl=w1920-h1080"
             val itemId = md5("$albumId-$baseUrl")
-            val itemTimestamp = extractTimestampForUrl(html, baseUrl) ?: (System.currentTimeMillis() - (index * 1000L))
+            val itemTimestamp = extractTimestampForUrl(html, baseUrl) ?: 0L
 
             items.add(
                 MediaItemEntity(

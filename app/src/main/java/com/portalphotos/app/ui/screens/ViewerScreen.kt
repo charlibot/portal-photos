@@ -377,30 +377,29 @@ fun ViewerScreen(
                         ?.trim() ?: ""
                 }
                 val ambientText = remember(activeMetadata?.formattedDate, activeMetadata?.locationName, cleanAlbumTitle) {
-                    buildString {
-                        append(activeMetadata?.formattedDate ?: "")
-                        if (!activeMetadata?.locationName.isNullOrBlank()) {
-                            append(" • ${activeMetadata?.locationName}")
-                        } else if (cleanAlbumTitle.isNotBlank()) {
-                            append(" • $cleanAlbumTitle")
-                        }
-                    }
+                    val datePart = activeMetadata?.formattedDate?.takeIf { it.isNotBlank() }
+                    val secondaryPart = activeMetadata?.locationName?.takeIf { it.isNotBlank() }
+                        ?: cleanAlbumTitle.takeIf { it.isNotBlank() }
+
+                    listOfNotNull(datePart, secondaryPart).joinToString(" • ")
                 }
 
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 24.dp, bottom = 28.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color.Black.copy(alpha = 0.6f))
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = ambientText,
-                        color = Color.White.copy(alpha = 0.9f),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
+                if (ambientText.isNotBlank()) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .padding(start = 24.dp, bottom = 28.dp)
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color.Black.copy(alpha = 0.6f))
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Text(
+                            text = ambientText,
+                            color = Color.White.copy(alpha = 0.9f),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
 

@@ -68,13 +68,15 @@ fun MetadataSheet(
                 }
             }
 
-            // 1. Date & Relative Age Card
-            MetadataRowCard(
-                icon = Icons.Default.CalendarToday,
-                title = metadata.formattedDate,
-                subtitle = metadata.relativeAge,
-                highlight = true
-            )
+            // 1. Date & Relative Age Card (only if date is present)
+            if (!metadata.formattedDate.isNullOrBlank()) {
+                MetadataRowCard(
+                    icon = Icons.Default.CalendarToday,
+                    title = metadata.formattedDate,
+                    subtitle = metadata.relativeAge ?: "",
+                    highlight = true
+                )
+            }
 
             // 2. Location (if present)
             if (!metadata.locationName.isNullOrBlank()) {

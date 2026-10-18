@@ -17,7 +17,7 @@ sealed class MediaItem {
         override val displayUrl: String,
         val width: Int = 0,
         val height: Int = 0,
-        override val timestamp: Long = System.currentTimeMillis()
+        override val timestamp: Long = 0L
     ) : MediaItem()
 
     data class Video(
@@ -30,6 +30,6 @@ sealed class MediaItem {
         val durationMs: Long = 0L,
         val width: Int = 0,
         val height: Int = 0,
-        override val timestamp: Long = System.currentTimeMillis()
+        override val timestamp: Long = 0L
     ) : MediaItem()
 }

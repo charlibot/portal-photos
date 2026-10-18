@@ -33,5 +33,5 @@ data class MediaItemEntity(
     val width: Int = 0,
     val height: Int = 0,
     val albumTitle: String = "",
-    val timestamp: Long = System.currentTimeMillis()
+    val timestamp: Long = 0L
 )
