@@ -36,4 +36,7 @@ interface AlbumDao {
 
     @Query("DELETE FROM media_items WHERE albumId = :albumId")
     suspend fun deleteMediaItemsForAlbum(albumId: String)
+
+    @Query("DELETE FROM media_items WHERE mediaUrl LIKE '%ogw%' OR mediaUrl LIKE '%/a/%' OR length(mediaUrl) < 70")
+    suspend fun deleteInvalidMediaItems(): Int
 }

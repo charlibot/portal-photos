@@ -30,6 +30,19 @@ class AlbumRepository(
     val mediaItemsForSelectedAlbums: Flow<List<MediaItem>> = albumDao.getMediaItemsForSelectedAlbums()
         .map { entities -> entities.map { it.toDomainModel() } }
 
+    init {
+        bgScope.launch {
+            try {
+                val deleted = albumDao.deleteInvalidMediaItems()
+                if (deleted > 0) {
+                    android.util.Log.i("AlbumRepository", "Purged $deleted invalid media items from database")
+                }
+            } catch (e: Exception) {
+                // Ignore cleanup error
+            }
+        }
+    }
+
     fun addAlbumUrlAsync(shareUrl: String, onComplete: ((Result<AlbumEntity>) -> Unit)? = null) {
         val cleanUrl = shareUrl.trim()
         val albumId = md5(cleanUrl)
@@ -116,6 +129,7 @@ class AlbumRepository(
     }
 
     suspend fun refreshAllAlbums() {
+        albumDao.deleteInvalidMediaItems()
         val albums = allAlbums.first()
         for (album in albums) {
             refreshAlbum(album.id)

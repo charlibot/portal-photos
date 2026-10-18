@@ -75,7 +75,12 @@ class SharedAlbumParser(
         }
 
         val title = cleanAlbumTitle(rawTitle)
-        val coverImage = targetDoc.select("meta[property=og:image]").attr("content").ifEmpty { null }
+        val rawCoverImage = targetDoc.select("meta[property=og:image]").attr("content").ifEmpty { null }
+        val coverImage = if (rawCoverImage != null && !rawCoverImage.contains("/ogw") && !rawCoverImage.contains("/a/") && rawCoverImage.length >= 60) {
+            rawCoverImage
+        } else {
+            null
+        }
         val albumId = md5(cleanUrl)
 
         // Parse media items from target HTML
@@ -130,21 +135,21 @@ class SharedAlbumParser(
         }
     }
 
-    private suspend fun parseMediaItemsFromHtml(html: String, albumId: String, albumTitle: String): List<MediaItemEntity> = withContext(Dispatchers.IO) {
+    internal suspend fun parseMediaItemsFromHtml(html: String, albumId: String, albumTitle: String): List<MediaItemEntity> = withContext(Dispatchers.IO) {
         val urlSet = LinkedHashSet<String>()
 
-        val photoUrlPattern = Pattern.compile("(https://lh[0-9]\\.googleusercontent\\.com/(?:pw/|a/|[a-zA-Z0-9\\-_]+)[a-zA-Z0-9\\-_]+)")
+        val photoUrlPattern = Pattern.compile("(https://lh[0-9]\\.googleusercontent\\.com/(?:pw/|[a-zA-Z0-9\\-_]+)[a-zA-Z0-9\\-_]+)")
         val matcher = photoUrlPattern.matcher(html)
 
         while (matcher.find()) {
-            val rawMatchedUrl = matcher.group(1)
-            if (rawMatchedUrl != null && rawMatchedUrl.length > 35) {
-                if (!html.contains("$rawMatchedUrl=s40") && !rawMatchedUrl.contains("/a/ACg8")) {
-                    val baseUrl = rawMatchedUrl.substringBefore("=").substringBefore("?")
-                    if (baseUrl.length > 35) {
-                        urlSet.add(baseUrl)
-                    }
-                }
+            val rawMatchedUrl = matcher.group(1) ?: continue
+            val baseUrl = rawMatchedUrl.substringBefore("=").substringBefore("?")
+            val isAvatarOrWidget = baseUrl.contains("/ogw") ||
+                    baseUrl.contains("/a/") ||
+                    html.contains("$rawMatchedUrl=s40") ||
+                    html.contains("$baseUrl=s40")
+            if (!isAvatarOrWidget && baseUrl.length >= 60) {
+                urlSet.add(baseUrl)
             }
         }
 
