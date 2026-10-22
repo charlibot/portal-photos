@@ -192,7 +192,9 @@ fun ViewerScreen(
 
             val shouldAutoAdvanceTimer = when {
                 currentItem is MediaItem.Photo -> true
-                currentItem is MediaItem.Video && currentItem.isLivePhoto -> userSettings.livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE
+                currentItem is MediaItem.Video && currentItem.isLivePhoto -> {
+                    userSettings.livePhotoBehavior != LivePhotoBehavior.PLAY_MOTION_ONCE || !userSettings.autoplayVideos
+                }
                 currentItem is MediaItem.Video && !currentItem.isLivePhoto -> !userSettings.autoplayVideos && !isLiveMotionPlaying
                 else -> false
             }

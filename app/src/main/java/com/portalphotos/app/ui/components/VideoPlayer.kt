@@ -199,6 +199,34 @@ fun VideoPlayer(
                 exoPlayer.volume = if (isMuted) 0f else 1.0f
             }
 
+            // Safety watchdog: if video stream stalls buffering without rendering first frame for 15s,
+            // or total non-manual playback exceeds 90s, advance automatically so slideshow never hangs.
+            LaunchedEffect(streamUrl, isManualMotionActive, hasRenderedFirstFrame) {
+                if (!isManualMotionActive) {
+                    if (!hasRenderedFirstFrame) {
+                        delay(15_000L)
+                        if (!hasRenderedFirstFrame && currentIsActivePage) {
+                            Log.w("PortalPhotos", "[EXO] Buffering timeout (15s) waiting for first frame; advancing slideshow")
+                            if (isManualVideoPlaying) {
+                                isManualVideoPlaying = false
+                                viewModel.setLiveMotionPlaying(false)
+                            }
+                            currentOnVideoCompleted()
+                        }
+                    } else {
+                        delay(90_000L)
+                        if (currentIsActivePage && !isManualMotionActive) {
+                            Log.w("PortalPhotos", "[EXO] Max video playback timeout (90s) reached; advancing slideshow")
+                            if (isManualVideoPlaying) {
+                                isManualVideoPlaying = false
+                                viewModel.setLiveMotionPlaying(false)
+                            }
+                            currentOnVideoCompleted()
+                        }
+                    }
+                }
+            }
+
             DisposableEffect(exoPlayer) {
                 val listener = object : Player.Listener {
                     override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
@@ -232,6 +260,7 @@ fun VideoPlayer(
                                     exoPlayer.play()
                                 } else {
                                     isLivePhotoFinished = true
+                                    currentOnVideoCompleted()
                                 }
                             } else if (!isManualMotionActive) {
                                 if (isManualVideoPlaying) {
