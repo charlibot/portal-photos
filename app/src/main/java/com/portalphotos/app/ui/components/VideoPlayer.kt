@@ -71,8 +71,8 @@ fun VideoPlayer(
     val userSettings by viewModel.userSettings.collectAsState()
     val isPlaying by viewModel.isPlaying.collectAsState()
 
-    val initialIsFinished = remember(streamUrl) {
-        (isLivePhotoItem && livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE)
+    val initialIsFinished = remember(streamUrl, isLivePhotoItem, livePhotoBehavior) {
+        (isLivePhotoItem && livePhotoBehavior != LivePhotoBehavior.PLAY_MOTION_ONCE)
     }
     var isLivePhotoFinished by remember(streamUrl) { mutableStateOf(initialIsFinished) }
     var isManualMotionActive by remember(streamUrl) { mutableStateOf(false) }
@@ -80,6 +80,32 @@ fun VideoPlayer(
     var livePhotoLoopCount by remember(streamUrl) { mutableStateOf(0) }
     var activeVideoWidth by remember(streamUrl) { mutableStateOf(0) }
     var activeVideoHeight by remember(streamUrl) { mutableStateOf(0) }
+
+    // Reset manual playback states when leaving the active page
+    LaunchedEffect(isActivePage) {
+        if (!isActivePage) {
+            if (isManualMotionActive) {
+                isManualMotionActive = false
+                viewModel.setLiveMotionPlaying(false)
+            }
+            if (isManualVideoPlaying) {
+                isManualVideoPlaying = false
+                viewModel.setLiveMotionPlaying(false)
+            }
+        } else if (isLivePhotoItem && livePhotoBehavior == LivePhotoBehavior.PLAY_MOTION_ONCE) {
+            isLivePhotoFinished = false
+            livePhotoLoopCount = 0
+        }
+    }
+
+    // Ensure liveMotionPlaying flag is cleaned up if composable is disposed while active
+    DisposableEffect(Unit) {
+        onDispose {
+            if (isManualMotionActive || isManualVideoPlaying) {
+                viewModel.setLiveMotionPlaying(false)
+            }
+        }
+    }
 
     // Auto-detect Portrait orientation from known item dimensions and active video track
     val isPortraitMedia = remember(itemWidth, itemHeight, activeVideoWidth, activeVideoHeight) {
@@ -102,24 +128,6 @@ fun VideoPlayer(
         label = "FocalPointPanVideo"
     )
 
-    val exoPlayer = remember(streamUrl) {
-        val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
-            setParameters(
-                buildUponParameters()
-                    .setMinVideoFrameRate(10)
-            )
-        }
-        ExoPlayer.Builder(context)
-            .setTrackSelector(trackSelector)
-            .build().apply {
-                val mediaSource = ProgressiveMediaSource.Factory(viewModel.cacheManager.cacheDataSourceFactory)
-                    .createMediaSource(MediaItem.fromUri(streamUrl))
-                setMediaSource(mediaSource)
-                prepare()
-                repeatMode = Player.REPEAT_MODE_OFF
-            }
-    }
-
     // Handle Still Photo Only mode EXCLUSIVELY for Live Photos
     if (isLivePhotoItem && livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_ONLY) {
         ImageViewer(
@@ -127,186 +135,25 @@ fun VideoPlayer(
             scalingMode = userSettings.scalingMode,
             transitionEffect = userSettings.transitionEffect,
             viewModel = viewModel,
+            isActivePage = isActivePage,
             modifier = modifier
         )
-        LaunchedEffect(isActivePage) {
-            if (isActivePage) {
-                delay(userSettings.slideshowTimerSeconds * 1000L)
-                if (currentIsActivePage) {
-                    currentOnVideoCompleted()
-                }
-            }
-        }
         return
     }
 
-    // Determine whether motion video surface should be visible
-    val showVideoSurface = if (isLivePhotoItem) {
+    // Determine whether video playback is actually desired right now.
+    // Do NOT instantiate ExoPlayer or PlayerView (TextureView) unless active and playing!
+    val wantsVideoPlayback = if (isLivePhotoItem) {
         when (livePhotoBehavior) {
-            LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE -> isManualMotionActive // Video appears ONLY when LIVE button is pressed!
-            LivePhotoBehavior.PLAY_MOTION_ONCE -> !isLivePhotoFinished
+            LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE -> isManualMotionActive
+            LivePhotoBehavior.PLAY_MOTION_ONCE -> (autoplay && isPlaying && !isLivePhotoFinished) || isManualMotionActive
             LivePhotoBehavior.STILL_PHOTO_ONLY -> false
         }
     } else {
-        autoplay || isManualVideoPlaying // Standalone video appears ONLY if autoplay is ON OR manually triggered!
+        (autoplay && isPlaying) || isManualVideoPlaying
     }
 
-    // Effect 1: Manual LIVE motion control — triggers ONLY when isManualMotionActive changes value
-    LaunchedEffect(isManualMotionActive) {
-        Log.d("PortalPhotos", "ManualMotion LaunchedEffect fired! isManualMotionActive=$isManualMotionActive | isActivePage=$isActivePage")
-        if (isManualMotionActive) {
-            viewModel.setLiveMotionPlaying(true)
-            isLivePhotoFinished = false
-            exoPlayer.repeatMode = Player.REPEAT_MODE_ALL
-            exoPlayer.setPlaybackSpeed(1.0f)
-            exoPlayer.seekTo(0)
-            exoPlayer.playWhenReady = true
-            exoPlayer.play()
-        } else {
-            viewModel.setLiveMotionPlaying(false)
-            exoPlayer.repeatMode = Player.REPEAT_MODE_OFF
-            exoPlayer.setPlaybackSpeed(1.0f)
-            if (isLivePhotoItem && livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE) {
-                isLivePhotoFinished = true
-                exoPlayer.playWhenReady = false
-                exoPlayer.pause()
-            }
-        }
-    }
-
-    // Effect 2: Normal page/play state control — SKIPS entirely when manual motion is active
-    LaunchedEffect(isActivePage, isPlaying, autoplay, isManualVideoPlaying) {
-        Log.d("PortalPhotos", "MainEffect LaunchedEffect isActivePage=$isActivePage | isPlaying=$isPlaying | isManualMotionActive=$isManualMotionActive | isLivePhoto=$isLivePhotoItem | autoplay=$autoplay")
-        if (isManualMotionActive) {
-            Log.d("PortalPhotos", "MainEffect SKIPPED because manual motion is active")
-            return@LaunchedEffect
-        }
-
-        if (!isActivePage) {
-            exoPlayer.playWhenReady = false
-            exoPlayer.pause()
-            if (isManualMotionActive) {
-                isManualMotionActive = false
-                viewModel.setLiveMotionPlaying(false)
-            }
-            if (isManualVideoPlaying) {
-                isManualVideoPlaying = false
-                viewModel.setLiveMotionPlaying(false)
-            }
-            return@LaunchedEffect
-        }
-
-        if (!isLivePhotoItem) {
-            if ((autoplay || isManualVideoPlaying) && isPlaying) {
-                exoPlayer.playWhenReady = true
-                exoPlayer.play()
-            } else {
-                exoPlayer.playWhenReady = false
-                exoPlayer.pause()
-            }
-        } else if (livePhotoBehavior == LivePhotoBehavior.PLAY_MOTION_ONCE) {
-            isLivePhotoFinished = false
-            livePhotoLoopCount = 0
-            exoPlayer.seekTo(0)
-            if (isPlaying && autoplay) {
-                exoPlayer.playWhenReady = true
-                exoPlayer.play()
-            } else {
-                exoPlayer.playWhenReady = false
-                exoPlayer.pause()
-            }
-        } else if (livePhotoBehavior == LivePhotoBehavior.STILL_PHOTO_WITH_MOTION_TOGGLE) {
-            isLivePhotoFinished = true
-            exoPlayer.playWhenReady = false
-            exoPlayer.pause()
-        }
-    }
-
-    // Handle Mute/Unmute state
-    LaunchedEffect(isMuted) {
-        exoPlayer.volume = if (isMuted) 0f else 1.0f
-    }
-
-    // Listen to video completion & state changes with deep diagnostic logging
-    DisposableEffect(exoPlayer) {
-        val listener = object : Player.Listener {
-            override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
-                Log.d("PortalPhotos", "[EXO] onTracksChanged called! Inspecting ${tracks.groups.size} track groups...")
-                for (group in tracks.groups) {
-                    if (group.type == androidx.media3.common.C.TRACK_TYPE_VIDEO) {
-                        val trackGroup = group.mediaTrackGroup
-                        Log.d("PortalPhotos", "[EXO] Found Video TrackGroup with ${trackGroup.length} formats:")
-                        for (i in 0 until trackGroup.length) {
-                            val format = trackGroup.getFormat(i)
-                            Log.d("PortalPhotos", "  -> Track $i: ${format.width}x${format.height} | frameRate=${format.frameRate} | mimeType=${format.sampleMimeType}")
-                            // Override to select motion track (width <= 1920 & height <= 1920) instead of static 2048x1536 cover track
-                            if ((format.width in 1..1920 || format.height in 1..1920) && (format.width != 2048 && format.height != 2048)) {
-                                Log.d("PortalPhotos", "[EXO] *** FORCING SELECTION OF MOTION TRACK $i (${format.width}x${format.height}) ***")
-                                val override = androidx.media3.common.TrackSelectionOverride(trackGroup, i)
-                                exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-                                    .buildUpon()
-                                    .setOverrideForType(override)
-                                    .build()
-                                break
-                            }
-                        }
-                    }
-                }
-            }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                val stateStr = when(playbackState) {
-                    Player.STATE_IDLE -> "IDLE"
-                    Player.STATE_BUFFERING -> "BUFFERING"
-                    Player.STATE_READY -> "READY"
-                    Player.STATE_ENDED -> "ENDED"
-                    else -> "UNKNOWN($playbackState)"
-                }
-                Log.d("PortalPhotos", "[EXO] onPlaybackStateChanged state=$stateStr | playWhenReady=${exoPlayer.playWhenReady} | isPlaying=${exoPlayer.isPlaying} | pos=${exoPlayer.currentPosition}/${exoPlayer.duration}")
-                if (playbackState == Player.STATE_ENDED && currentIsActivePage) {
-                    if (isLivePhotoItem && livePhotoBehavior == LivePhotoBehavior.PLAY_MOTION_ONCE && !isManualMotionActive) {
-                        livePhotoLoopCount++
-                        if (livePhotoLoopCount < 2) {
-                            exoPlayer.seekTo(0)
-                            exoPlayer.play()
-                        } else {
-                            isLivePhotoFinished = true
-                        }
-                    } else if (!isManualMotionActive) {
-                        currentOnVideoCompleted()
-                    }
-                }
-            }
-
-            override fun onIsPlayingChanged(isPlaying: Boolean) {
-                Log.d("PortalPhotos", "[EXO] onIsPlayingChanged isPlaying=$isPlaying | pos=${exoPlayer.currentPosition}")
-            }
-
-            override fun onRenderedFirstFrame() {
-                Log.d("PortalPhotos", "[EXO] *** FIRST FRAME RENDERED *** videoSize=${exoPlayer.videoSize.width}x${exoPlayer.videoSize.height} | pos=${exoPlayer.currentPosition}")
-            }
-
-            override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
-                Log.d("PortalPhotos", "[EXO] onVideoSizeChanged ${videoSize.width}x${videoSize.height}")
-                if (videoSize.width > 0 && videoSize.height > 0) {
-                    activeVideoWidth = videoSize.width
-                    activeVideoHeight = videoSize.height
-                }
-            }
-
-            override fun onPlayerError(error: PlaybackException) {
-                Log.e("PortalPhotos", "[EXO] Error: ${error.localizedMessage}", error)
-                if (currentIsActivePage && !isManualMotionActive) {
-                    currentOnVideoCompleted()
-                }
-            }
-        }
-        exoPlayer.addListener(listener)
-        onDispose {
-            exoPlayer.removeListener(listener)
-            exoPlayer.release()
-        }
-    }
+    val shouldMountVideoPlayer = isActivePage && wantsVideoPlayback
 
     Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
         // Layer 1 (Background): High-Res Photo ALWAYS rendered underneath
@@ -315,44 +162,150 @@ fun VideoPlayer(
             scalingMode = effectiveScalingMode,
             transitionEffect = userSettings.transitionEffect,
             viewModel = viewModel,
+            isActivePage = isActivePage,
             modifier = Modifier.fillMaxSize()
         )
 
-        // Layer 2 (Foreground): Motion Video Surface ALWAYS composed with TextureView
-        val targetBiasAlignment = remember(animatedFocalPoint) {
-            SmartCropDetector.toBiasAlignment(animatedFocalPoint)
-        }
+        // Layer 2 (Foreground): Lazily mount ExoPlayer + TextureView ONLY when actively playing video/motion
+        if (shouldMountVideoPlayer) {
+            var hasRenderedFirstFrame by remember(streamUrl) { mutableStateOf(false) }
+            var hasAppliedTrackOverride by remember(streamUrl) { mutableStateOf(false) }
 
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = when (effectiveScalingMode) {
-                ScalingMode.FIT, ScalingMode.FILL_CENTER -> Alignment.Center
-                ScalingMode.FILL_SMART_CROP -> targetBiasAlignment
+            val exoPlayer = remember(streamUrl) {
+                val trackSelector = androidx.media3.exoplayer.trackselection.DefaultTrackSelector(context).apply {
+                    setParameters(
+                        buildUponParameters()
+                            .setMinVideoFrameRate(10)
+                    )
+                }
+                ExoPlayer.Builder(context)
+                    .setTrackSelector(trackSelector)
+                    .build().apply {
+                        val mediaSource = ProgressiveMediaSource.Factory(viewModel.cacheManager.cacheDataSourceFactory)
+                            .createMediaSource(MediaItem.fromUri(streamUrl))
+                        setMediaSource(mediaSource)
+                        repeatMode = if (isManualMotionActive) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+                        volume = if (isMuted) 0f else 1.0f
+                        playWhenReady = true
+                        prepare()
+                    }
             }
-        ) {
-            AndroidView(
-                factory = { ctx ->
-                    val view = android.view.LayoutInflater.from(ctx).inflate(com.portalphotos.app.R.layout.player_view, null, false)
-                    (view as PlayerView).apply {
-                        useController = false
-                        setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+
+            LaunchedEffect(isManualMotionActive) {
+                exoPlayer.repeatMode = if (isManualMotionActive) Player.REPEAT_MODE_ALL else Player.REPEAT_MODE_OFF
+            }
+
+            LaunchedEffect(isMuted) {
+                exoPlayer.volume = if (isMuted) 0f else 1.0f
+            }
+
+            DisposableEffect(exoPlayer) {
+                val listener = object : Player.Listener {
+                    override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+                        if (hasAppliedTrackOverride) return
+                        for (group in tracks.groups) {
+                            if (group.type == androidx.media3.common.C.TRACK_TYPE_VIDEO) {
+                                val trackGroup = group.mediaTrackGroup
+                                for (i in 0 until trackGroup.length) {
+                                    val format = trackGroup.getFormat(i)
+                                    // Select motion track (width <= 1920 & height <= 1920) instead of static 2048x1536 cover track
+                                    if ((format.width in 1..1920 || format.height in 1..1920) && (format.width != 2048 && format.height != 2048)) {
+                                        hasAppliedTrackOverride = true
+                                        val override = androidx.media3.common.TrackSelectionOverride(trackGroup, i)
+                                        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
+                                            .buildUpon()
+                                            .setOverrideForType(override)
+                                            .build()
+                                        break
+                                    }
+                                }
+                            }
+                        }
                     }
-                },
-                update = { playerView ->
-                    playerView.player = exoPlayer
-                    playerView.resizeMode = when (effectiveScalingMode) {
-                        ScalingMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                        ScalingMode.FILL_CENTER, ScalingMode.FILL_SMART_CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+
+                    override fun onPlaybackStateChanged(playbackState: Int) {
+                        if (playbackState == Player.STATE_ENDED && currentIsActivePage) {
+                            if (isLivePhotoItem && livePhotoBehavior == LivePhotoBehavior.PLAY_MOTION_ONCE && !isManualMotionActive) {
+                                livePhotoLoopCount++
+                                if (livePhotoLoopCount < 2) {
+                                    exoPlayer.seekTo(0)
+                                    exoPlayer.play()
+                                } else {
+                                    isLivePhotoFinished = true
+                                }
+                            } else if (!isManualMotionActive) {
+                                if (isManualVideoPlaying) {
+                                    isManualVideoPlaying = false
+                                    viewModel.setLiveMotionPlaying(false)
+                                }
+                                currentOnVideoCompleted()
+                            }
+                        }
                     }
-                    if (isManualMotionActive) {
-                        exoPlayer.playWhenReady = true
-                        exoPlayer.play()
+
+                    override fun onRenderedFirstFrame() {
+                        hasRenderedFirstFrame = true
                     }
-                },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer(alpha = if (showVideoSurface) 1f else 0f)
-            )
+
+                    override fun onVideoSizeChanged(videoSize: androidx.media3.common.VideoSize) {
+                        if (videoSize.width > 0 && videoSize.height > 0) {
+                            activeVideoWidth = videoSize.width
+                            activeVideoHeight = videoSize.height
+                        }
+                    }
+
+                    override fun onPlayerError(error: PlaybackException) {
+                        Log.e("PortalPhotos", "[EXO] Error: ${error.localizedMessage}", error)
+                        if (currentIsActivePage && !isManualMotionActive) {
+                            if (isManualVideoPlaying) {
+                                isManualVideoPlaying = false
+                                viewModel.setLiveMotionPlaying(false)
+                            }
+                            currentOnVideoCompleted()
+                        }
+                    }
+                }
+                exoPlayer.addListener(listener)
+                onDispose {
+                    exoPlayer.removeListener(listener)
+                    exoPlayer.release()
+                }
+            }
+
+            val targetBiasAlignment = remember(animatedFocalPoint) {
+                SmartCropDetector.toBiasAlignment(animatedFocalPoint)
+            }
+
+            Box(
+                modifier = Modifier.fillMaxSize(),
+                contentAlignment = when (effectiveScalingMode) {
+                    ScalingMode.FIT, ScalingMode.FILL_CENTER -> Alignment.Center
+                    ScalingMode.FILL_SMART_CROP -> targetBiasAlignment
+                }
+            ) {
+                AndroidView(
+                    factory = { ctx ->
+                        val view = android.view.LayoutInflater.from(ctx).inflate(com.portalphotos.app.R.layout.player_view, null, false)
+                        (view as PlayerView).apply {
+                            useController = false
+                            setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        }
+                    },
+                    update = { playerView ->
+                        playerView.player = exoPlayer
+                        playerView.resizeMode = when (effectiveScalingMode) {
+                            ScalingMode.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            ScalingMode.FILL_CENTER, ScalingMode.FILL_SMART_CROP -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        }
+                    },
+                    onRelease = { playerView ->
+                        playerView.player = null
+                    },
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer(alpha = if (hasRenderedFirstFrame) 1f else 0f)
+                )
+            }
         }
 
         // Google Photos Style Interactive Live Motion Toggle Pill (Top-Left)
@@ -368,9 +321,9 @@ fun VideoPlayer(
                         else Color.Black.copy(alpha = 0.6f)
                     )
                     .clickable {
-                        // Toggle manual motion - the LaunchedEffect handles all ExoPlayer control
-                        isManualMotionActive = !isManualMotionActive
-                        Log.d("PortalPhotos", "LIVE motion pill tapped! isManualMotionActive=$isManualMotionActive")
+                        val nextState = !isManualMotionActive
+                        isManualMotionActive = nextState
+                        viewModel.setLiveMotionPlaying(nextState)
                     }
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
