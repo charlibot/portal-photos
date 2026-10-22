@@ -8,6 +8,7 @@ import com.portalphotos.app.data.parser.SharedAlbumParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -29,6 +30,7 @@ class AlbumRepository(
 
     val mediaItemsForSelectedAlbums: Flow<List<MediaItem>> = albumDao.getMediaItemsForSelectedAlbums()
         .map { entities -> entities.map { it.toDomainModel() } }
+        .distinctUntilChanged()
 
     init {
         bgScope.launch {
@@ -88,8 +90,7 @@ class AlbumRepository(
 
             albumDao.insertAlbum(albumEntity)
             if (parsedResult.mediaItems.isNotEmpty()) {
-                albumDao.deleteMediaItemsForAlbum(parsedResult.id)
-                albumDao.insertMediaItems(parsedResult.mediaItems)
+                albumDao.replaceMediaItemsForAlbum(parsedResult.id, parsedResult.mediaItems)
             }
 
             albumEntity
@@ -122,8 +123,11 @@ class AlbumRepository(
 
             albumDao.insertAlbum(updatedAlbum)
             if (parsedResult.mediaItems.isNotEmpty()) {
-                albumDao.deleteMediaItemsForAlbum(albumId)
-                albumDao.insertMediaItems(parsedResult.mediaItems)
+                val existingIds = albumDao.getMediaItemsForAlbum(albumId).map { it.id }.toSet()
+                val newIds = parsedResult.mediaItems.map { it.id }.toSet()
+                if (existingIds != newIds) {
+                    albumDao.replaceMediaItemsForAlbum(albumId, parsedResult.mediaItems)
+                }
             }
         }
     }
