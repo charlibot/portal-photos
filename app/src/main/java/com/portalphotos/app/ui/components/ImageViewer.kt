@@ -10,6 +10,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -120,13 +121,10 @@ fun ImageViewer(
         }
     }
 
-    val kenBurnsScale = kenBurnsAnim.value
-    val kenBurnsPanX = panXAnim.value
-    val kenBurnsPanY = panYAnim.value
-
     Box(
         modifier = modifier
             .fillMaxSize()
+            .clipToBounds()
             .background(Color.Black)
     ) {
         when (effectiveScalingMode) {
@@ -139,7 +137,7 @@ fun ImageViewer(
                     modifier = Modifier
                         .fillMaxSize()
                         .blur(30.dp)
-                        .graphicsLayer(alpha = 0.6f)
+                        .graphicsLayer { alpha = 0.6f }
                 )
                 // Foreground: Crisp, perfectly stable uncropped portrait photo (100% static, zero box distortion)
                 Image(
@@ -158,12 +156,12 @@ fun ImageViewer(
                     alignment = Alignment.Center,
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer(
-                            scaleX = kenBurnsScale,
-                            scaleY = kenBurnsScale,
-                            translationX = kenBurnsPanX,
-                            translationY = kenBurnsPanY
-                        )
+                        .graphicsLayer {
+                            scaleX = kenBurnsAnim.value
+                            scaleY = kenBurnsAnim.value
+                            translationX = panXAnim.value
+                            translationY = panYAnim.value
+                        }
                 )
             }
             ScalingMode.FILL_SMART_CROP -> {
@@ -178,12 +176,12 @@ fun ImageViewer(
                     alignment = biasAlignment, // Smartly anchored on faces/artwork!
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer(
-                            scaleX = kenBurnsScale,
-                            scaleY = kenBurnsScale,
-                            translationX = kenBurnsPanX,
-                            translationY = kenBurnsPanY
-                        )
+                        .graphicsLayer {
+                            scaleX = kenBurnsAnim.value
+                            scaleY = kenBurnsAnim.value
+                            translationX = panXAnim.value
+                            translationY = panYAnim.value
+                        }
                 )
             }
         }

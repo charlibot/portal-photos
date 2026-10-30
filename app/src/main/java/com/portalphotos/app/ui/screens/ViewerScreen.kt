@@ -109,18 +109,38 @@ fun ViewerScreen(
         }
     }
 
-    // Safe infinite looping pager setup within Float precision limits
-    val virtualPageCount = remember(mediaItems) {
-        if (mediaItems.size > 1) mediaItems.size * 1000 else 1
+    // Keep virtual page indices small so pageOffset * 1280px stays well within 32-bit Float
+    // sub-pixel precision (< 0.1px), preventing ease-out scroll tail rounding drift.
+    val loopStride = remember(mediaItems) {
+        if (mediaItems.size > 1) mediaItems.size * 4 else 1
     }
-    val initialPage = remember(mediaItems) {
-        if (mediaItems.size > 1) mediaItems.size * 500 else 0
+    val virtualPageCount = remember(mediaItems, loopStride) {
+        if (mediaItems.size > 1) loopStride * 4 else 1
+    }
+    val initialPage = remember(mediaItems, loopStride) {
+        if (mediaItems.size > 1) loopStride else 0
     }
 
     val pagerState = rememberPagerState(
         initialPage = initialPage,
         pageCount = { virtualPageCount }
     )
+
+    suspend fun scrollToPageCleanly(targetPage: Int) {
+        if (mediaItems.size <= 1) return
+        pagerState.animateScrollToPage(
+            page = targetPage,
+            animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
+        )
+        val desiredPage = if (targetPage < loopStride || targetPage >= loopStride * 2) {
+            loopStride + ((targetPage % loopStride) + loopStride) % loopStride
+        } else {
+            targetPage
+        }
+        if (pagerState.currentPage != desiredPage || pagerState.currentPageOffsetFraction != 0f) {
+            pagerState.scrollToPage(desiredPage, 0f)
+        }
+    }
 
     // Compute Metadata for currently active media item safely without blocking the UI looper
     val activeItem = remember(pagerState.settledPage, mediaItems) {
@@ -202,11 +222,7 @@ fun ViewerScreen(
             if (shouldAutoAdvanceTimer) {
                 delay(userSettings.slideshowTimerSeconds * 1000L)
                 if (isPlaying && !isSleepingNow && !isLiveMotionPlaying && mediaItems.isNotEmpty()) {
-                    val nextPage = pagerState.settledPage + 1
-                    pagerState.animateScrollToPage(
-                        page = nextPage,
-                        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
-                    )
+                    scrollToPageCleanly(pagerState.settledPage + 1)
                 }
             }
         }
@@ -311,9 +327,9 @@ fun ViewerScreen(
                 key = { page ->
                     if (mediaItems.isNotEmpty()) {
                         val actualIndex = page % mediaItems.size
-                        "${mediaItems[actualIndex].id}_$page"
+                        "${mediaItems[actualIndex].id}_${page % 4}"
                     } else {
-                        "empty_$page"
+                        "empty_${page % 4}"
                     }
                 },
                 modifier = Modifier.fillMaxSize()
@@ -348,11 +364,7 @@ fun ViewerScreen(
                                 onVideoCompleted = {
                                     scope.launch {
                                         if (mediaItems.isNotEmpty() && !isSleepingNow) {
-                                            val nextPage = pagerState.settledPage + 1
-                                            pagerState.animateScrollToPage(
-                                                page = nextPage,
-                                                animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
-                                            )
+                                            scrollToPageCleanly(pagerState.settledPage + 1)
                                         }
                                     }
                                 },
@@ -533,11 +545,7 @@ fun ViewerScreen(
                         IconButton(
                             onClick = {
                                 scope.launch {
-                                    val prevPage = pagerState.settledPage - 1
-                                    pagerState.animateScrollToPage(
-                                        page = prevPage,
-                                        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
-                                    )
+                                    scrollToPageCleanly(pagerState.settledPage - 1)
                                 }
                             }
                         ) {
@@ -601,11 +609,7 @@ fun ViewerScreen(
                         IconButton(
                             onClick = {
                                 scope.launch {
-                                    val nextPage = pagerState.settledPage + 1
-                                    pagerState.animateScrollToPage(
-                                        page = nextPage,
-                                        animationSpec = tween(durationMillis = 600, easing = FastOutSlowInEasing)
-                                    )
+                                    scrollToPageCleanly(pagerState.settledPage + 1)
                                 }
                             }
                         ) {
